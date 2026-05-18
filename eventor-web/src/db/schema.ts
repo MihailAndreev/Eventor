@@ -32,6 +32,13 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "event_canceled",
 ]);
 
+export const groupInviteStatusEnum = pgEnum("group_invite_status", [
+  "pending",
+  "accepted",
+  "expired",
+  "revoked",
+]);
+
 export const users = pgTable(
   "users",
   {
@@ -92,15 +99,21 @@ export const groupInvites = pgTable(
     createdByUserId: integer("created_by_user_id")
       .notNull()
       .references(() => users.id),
+    invitedUserId: integer("invited_user_id").references(() => users.id, { onDelete: "set null" }),
     inviteToken: varchar("invite_token", { length: 255 }).notNull(),
+    status: groupInviteStatusEnum("status").notNull().default("pending"),
     isActive: boolean("is_active").notNull().default(true),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("group_invites_invite_token_idx").on(table.inviteToken),
     index("group_invites_group_id_idx").on(table.groupId),
     index("group_invites_created_by_user_id_idx").on(table.createdByUserId),
+    index("group_invites_invited_user_id_idx").on(table.invitedUserId),
+    index("group_invites_status_idx").on(table.status),
     index("group_invites_is_active_expires_at_idx").on(table.isActive, table.expiresAt),
   ],
 );
@@ -143,6 +156,7 @@ export const eventParticipants = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     status: eventParticipantStatusEnum("status").notNull().default("going"),
+    extraSlots: integer("extra_slots").notNull().default(0),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "drizzle-kit migrate && node scripts/seed.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.6",
