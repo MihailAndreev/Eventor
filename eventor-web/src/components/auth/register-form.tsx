@@ -1,17 +1,18 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
+import { registerAction } from "@/app/(auth)/actions";
+import { initialAuthActionState } from "@/app/(auth)/types";
 
 export function RegisterForm() {
-  const [message, setMessage] = useState("");
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("Registration will connect to the authentication service soon.");
-  }
+  const [state, formAction] = useActionState(
+    registerAction,
+    initialAuthActionState,
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-5">
+    <form action={formAction} className="grid gap-5">
       <div className="grid gap-2">
         <label htmlFor="name" className="text-sm font-medium text-slate-800">
           Full name
@@ -58,17 +59,26 @@ export function RegisterForm() {
           placeholder="Create a password"
         />
       </div>
-      <button
-        type="submit"
-        className="h-12 rounded-md bg-emerald-600 px-5 text-base font-semibold text-white transition hover:bg-emerald-700"
-      >
-        Create account
-      </button>
-      {message ? (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {message}
+      <RegisterSubmitButton />
+      {state.message ? (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          {state.message}
         </p>
       ) : null}
     </form>
+  );
+}
+
+function RegisterSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="h-12 rounded-md bg-emerald-600 px-5 text-base font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-400"
+    >
+      {pending ? "Creating account..." : "Create account"}
+    </button>
   );
 }

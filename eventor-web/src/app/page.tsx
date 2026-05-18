@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { getCurrentUser } from "@/lib/auth/session";
 
-export default function Home() {
+export default async function Home() {
+  const currentUser = await getCurrentUser();
+
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-1 items-center px-5 py-16 sm:px-6 lg:px-8">
       <div className="grid w-full gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
@@ -16,20 +19,22 @@ export default function Home() {
             create shared events, manage attendance, and keep everyone aligned
             before the day arrives.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/login"
-              className="inline-flex h-12 items-center justify-center rounded-md bg-slate-950 px-6 text-base font-semibold text-white transition hover:bg-slate-800"
-            >
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex h-12 items-center justify-center rounded-md border border-slate-300 bg-white px-6 text-base font-semibold text-slate-950 transition hover:border-emerald-500 hover:text-emerald-700"
-            >
-              Register
-            </Link>
-          </div>
+          {!currentUser && (
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/login"
+                className="inline-flex h-12 items-center justify-center rounded-md bg-slate-950 px-6 text-base font-semibold text-white transition hover:bg-slate-800"
+              >
+                Login
+              </Link>
+              <Link
+                href="/register"
+                className="inline-flex h-12 items-center justify-center rounded-md border border-slate-300 bg-white px-6 text-base font-semibold text-slate-950 transition hover:border-emerald-500 hover:text-emerald-700"
+              >
+                Register
+              </Link>
+            </div>
+          )}
         </div>
         <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="rounded-md border border-emerald-100 bg-emerald-50 p-4">

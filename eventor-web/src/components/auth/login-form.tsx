@@ -1,17 +1,19 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
+import { loginAction } from "@/app/(auth)/actions";
+import { initialAuthActionState } from "@/app/(auth)/types";
 
-export function LoginForm() {
-  const [message, setMessage] = useState("");
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("Login will connect to the authentication service soon.");
-  }
+export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }) {
+  const [state, formAction] = useActionState(
+    loginAction,
+    initialAuthActionState,
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-5">
+    <form action={formAction} className="grid gap-5">
+      <input type="hidden" name="redirectTo" value={redirectTo} />
       <div className="grid gap-2">
         <label htmlFor="email" className="text-sm font-medium text-slate-800">
           Email address
@@ -43,17 +45,26 @@ export function LoginForm() {
           placeholder="Enter your password"
         />
       </div>
-      <button
-        type="submit"
-        className="h-12 rounded-md bg-slate-950 px-5 text-base font-semibold text-white transition hover:bg-slate-800"
-      >
-        Login
-      </button>
-      {message ? (
-        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {message}
+      <LoginSubmitButton />
+      {state.message ? (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          {state.message}
         </p>
       ) : null}
     </form>
+  );
+}
+
+function LoginSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="h-12 rounded-md bg-slate-950 px-5 text-base font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-500"
+    >
+      {pending ? "Logging in..." : "Login"}
+    </button>
   );
 }

@@ -1,0 +1,13 @@
+
+> eventor-web@0.1.0 dev
+> next dev -p 3000
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.178.25:3000
+- Environments: .env
+✓ Ready in 668ms
+Creating turbopack project { dir: 'E:\\Vibe coding\\Eventor\\eventor-web', testMode: true }
+
+ GET / 200 in 853ms (next.js: 178ms, proxy.ts: 318ms, application-code: 357ms)
+[?25h
