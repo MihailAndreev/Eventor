@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GroupFilterSelect } from "@/components/events/group-filter-select";
 import type { DashboardGroup } from "@/services/events";
 
 export type DashboardView = "active" | "archive";
@@ -40,7 +41,7 @@ export function DashboardViewTabs({
             aria-current={active ? "page" : undefined}
             className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition ${
               active
-                ? "bg-emerald-600 text-white shadow-sm"
+                ? "bg-[#004F6E] text-white shadow-sm"
                 : "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
             }`}
           >
@@ -59,33 +60,51 @@ export function GroupFilterTabs({
   selectedView,
   selectedGroupSlug,
 }: GroupFilterTabsProps) {
-  return (
-    <nav
-      aria-label="Dashboard group filter"
-      className="flex gap-2 overflow-x-auto pb-1"
-    >
-      <Link
-        href={getDashboardHref(selectedView)}
-        aria-current={!selectedGroupSlug ? "page" : undefined}
-        className={getGroupTabClass(!selectedGroupSlug)}
-      >
-        All groups ({allCount})
-      </Link>
-      {groups.map((group) => {
-        const active = selectedGroupSlug === group.slug;
+  const allGroupsHref = getDashboardHref(selectedView);
+  const options = [
+    { href: allGroupsHref, key: "all-groups", label: `All groups (${allCount})` },
+    ...groups.map((group) => ({
+      href: getDashboardHref(selectedView, group.slug),
+      key: `group-${group.id}`,
+      label: `${group.title} (${countsByGroup.get(group.slug) ?? 0})`,
+    })),
+  ];
+  const selectedHref = selectedGroupSlug
+    ? getDashboardHref(selectedView, selectedGroupSlug)
+    : allGroupsHref;
 
-        return (
-          <Link
-            key={group.id}
-            href={getDashboardHref(selectedView, group.slug)}
-            aria-current={active ? "page" : undefined}
-            className={getGroupTabClass(active)}
-          >
-            {group.title} ({countsByGroup.get(group.slug) ?? 0})
-          </Link>
-        );
-      })}
-    </nav>
+  return (
+    <>
+      <div className="sm:hidden">
+        <GroupFilterSelect options={options} selectedHref={selectedHref} />
+      </div>
+      <nav
+        aria-label="Dashboard group filter"
+        className="hidden flex-wrap gap-2 sm:flex"
+      >
+        <Link
+          href={allGroupsHref}
+          aria-current={!selectedGroupSlug ? "page" : undefined}
+          className={getGroupTabClass(!selectedGroupSlug)}
+        >
+          All groups ({allCount})
+        </Link>
+        {groups.map((group) => {
+          const active = selectedGroupSlug === group.slug;
+
+          return (
+            <Link
+              key={group.id}
+              href={getDashboardHref(selectedView, group.slug)}
+              aria-current={active ? "page" : undefined}
+              className={getGroupTabClass(active)}
+            >
+              {group.title} ({countsByGroup.get(group.slug) ?? 0})
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }
 
@@ -102,9 +121,9 @@ function getDashboardHref(view: DashboardView, groupSlug?: string) {
 }
 
 function getGroupTabClass(active: boolean) {
-  return `whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ring-1 transition ${
+  return `shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ring-1 transition ${
     active
-      ? "bg-emerald-600 text-white ring-emerald-600"
+      ? "bg-[#004F6E] text-white ring-[#004F6E]"
       : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50 hover:text-slate-950"
   }`;
 }

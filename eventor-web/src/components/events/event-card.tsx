@@ -14,7 +14,7 @@ type BadgeTone = "blue" | "green" | "gray" | "red" | "orange" | "purple";
 
 const badgeToneClasses: Record<BadgeTone, string> = {
   blue: "bg-sky-50 text-sky-800 ring-sky-200",
-  green: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+  green: "bg-[#EAF5F8] text-[#004F6E] ring-[#B8D7E2]",
   gray: "bg-slate-100 text-slate-700 ring-slate-200",
   red: "bg-red-50 text-red-800 ring-red-200",
   orange: "bg-amber-50 text-amber-800 ring-amber-200",
@@ -24,7 +24,7 @@ const badgeToneClasses: Record<BadgeTone, string> = {
 export function EventCard({ event, muted = false }: EventCardProps) {
   return (
     <article
-      className={`group rounded-lg border border-slate-200 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md sm:p-5 ${
+      className={`group rounded-lg border border-slate-200 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7FB3C4] hover:shadow-md sm:p-5 ${
         muted ? "bg-slate-50/80" : "bg-white"
       }`}
     >
@@ -46,7 +46,7 @@ export function EventCard({ event, muted = false }: EventCardProps) {
           <ParticipantChips participants={event.participants} maxVisible={4} />
           <Link
             href={`/events/${event.id}`}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-[#D5E8EF]"
           >
             View event
           </Link>
@@ -143,7 +143,7 @@ export function EventHeader({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-emerald-700">
+          <p className="text-sm font-semibold text-[#004F6E]">
             {event.groupTitle}
           </p>
           {isDetail ? (
@@ -287,7 +287,7 @@ export function ParticipantChips({
         </li>
       ))}
       {remainingCount > 0 ? (
-        <li className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
+        <li className="inline-flex items-center rounded-full bg-[#EAF5F8] px-3 py-1.5 text-sm font-semibold text-[#004F6E] ring-1 ring-[#B8D7E2]">
           +{remainingCount} more
         </li>
       ) : null}
@@ -317,7 +317,7 @@ function CommentFeed({ event }: { event: DashboardEvent }) {
     <ol className="relative grid gap-4 border-l border-slate-200 pl-4">
       {event.comments.map((comment) => (
         <li key={comment.id} className="relative">
-          <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-4 ring-white" />
+          <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-[#007EA0] ring-4 ring-white" />
           <div className="rounded-md bg-slate-50 px-3 py-2">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-slate-950">
@@ -415,7 +415,7 @@ function getCapacityBarColor(event: DashboardEvent) {
     return "bg-amber-500";
   }
 
-  return "bg-emerald-500";
+  return "bg-[#007EA0]";
 }
 
 function getStateLabel(event: DashboardEvent) {

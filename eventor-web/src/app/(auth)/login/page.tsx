@@ -31,7 +31,7 @@ export default async function LoginPage({
         <LoginForm redirectTo={redirectTo} />
         <p className="mt-6 text-center text-sm text-slate-600">
           New to Eventor?{" "}
-          <Link href="/register" className="font-semibold text-emerald-700">
+          <Link href="/register" className="font-semibold text-[#004F6E]">
             Register
           </Link>
         </p>

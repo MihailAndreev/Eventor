@@ -23,7 +23,7 @@ export function RegisterForm() {
           type="text"
           autoComplete="name"
           required
-          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-[#004F6E] focus:ring-4 focus:ring-[#D5E8EF]"
           placeholder="Jane Planner"
         />
       </div>
@@ -37,7 +37,7 @@ export function RegisterForm() {
           type="email"
           autoComplete="email"
           required
-          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-[#004F6E] focus:ring-4 focus:ring-[#D5E8EF]"
           placeholder="you@example.com"
         />
       </div>
@@ -55,7 +55,7 @@ export function RegisterForm() {
           autoComplete="new-password"
           required
           minLength={8}
-          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-[#004F6E] focus:ring-4 focus:ring-[#D5E8EF]"
           placeholder="Create a password"
         />
       </div>
@@ -76,7 +76,7 @@ function RegisterSubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="h-12 rounded-md bg-emerald-600 px-5 text-base font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-400"
+      className="h-12 rounded-md bg-[#004F6E] px-5 text-base font-semibold text-white transition hover:bg-[#003F58] disabled:cursor-not-allowed disabled:bg-[#7FA7B7]"
     >
       {pending ? "Creating account..." : "Create account"}
     </button>

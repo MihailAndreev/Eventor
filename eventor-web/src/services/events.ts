@@ -117,7 +117,7 @@ export async function getUserDashboardGroups(userId: number): Promise<DashboardG
   return userGroups
     .map((group) => ({
       ...group,
-      slug: slugify(group.title),
+      slug: slugify(group.title, group.id),
     }))
     .sort((a, b) => a.title.localeCompare(b.title));
 }
@@ -465,7 +465,7 @@ async function hydrateEvents(
 
     return {
       ...event,
-      groupSlug: slugify(event.groupTitle),
+      groupSlug: slugify(event.groupTitle, event.groupId),
       startAt,
       timeState,
       capacityState,
@@ -483,12 +483,14 @@ async function hydrateEvents(
   });
 }
 
-function slugify(value: string) {
-  return value
+function slugify(value: string, id: number) {
+  const slug = value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+
+  return slug ? `${slug}-${id}` : `group-${id}`;
 }
 
 function getEventStartAt(eventDate: string, eventTime: string) {

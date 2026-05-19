@@ -41,7 +41,7 @@ export default async function DashboardPage({
     <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-10 sm:px-6 lg:px-8">
       <section className="grid gap-5">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#004F6E]">
             User Dashboard
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">

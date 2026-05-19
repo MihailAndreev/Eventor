@@ -24,7 +24,7 @@ export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }
           type="email"
           autoComplete="email"
           required
-          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-[#004F6E] focus:ring-4 focus:ring-[#D5E8EF]"
           placeholder="you@example.com"
         />
       </div>
@@ -41,7 +41,7 @@ export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }
           type="password"
           autoComplete="current-password"
           required
-          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+          className="h-12 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-[#004F6E] focus:ring-4 focus:ring-[#D5E8EF]"
           placeholder="Enter your password"
         />
       </div>

@@ -63,7 +63,7 @@ export function EventActions({
         <button
           type="button"
           onClick={copyEventLink}
-          className="h-11 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-emerald-500 hover:text-emerald-700"
+          className="h-11 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
         >
           {copied ? "Copied" : "Share event link"}
         </button>
@@ -99,7 +99,7 @@ export function EventActions({
               <button
                 type="button"
                 onClick={() => setSlotValue((value) => Math.max(0, value - 1))}
-                className="h-11 w-11 rounded-md border border-slate-300 bg-white text-lg font-semibold text-slate-800 transition hover:border-emerald-500 hover:text-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                className="h-11 w-11 rounded-md border border-slate-300 bg-white text-lg font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                 aria-label="Remove one additional guest"
                 disabled={!isActive}
               >
@@ -115,13 +115,13 @@ export function EventActions({
                   value={slotValue}
                   onChange={(event) => setSlotValue(Number(event.target.value))}
                   disabled={!isActive}
-                  className="h-11 w-24 rounded-md border border-slate-300 bg-white px-3 text-center text-base font-semibold text-slate-950 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="h-11 w-24 rounded-md border border-slate-300 bg-white px-3 text-center text-base font-semibold text-slate-950 outline-none transition focus:border-[#004F6E] focus:ring-4 focus:ring-[#D5E8EF] disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
               <button
                 type="button"
                 onClick={() => setSlotValue((value) => Math.min(20, value + 1))}
-                className="h-11 w-11 rounded-md border border-slate-300 bg-white text-lg font-semibold text-slate-800 transition hover:border-emerald-500 hover:text-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                className="h-11 w-11 rounded-md border border-slate-300 bg-white text-lg font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                 aria-label="Add one additional guest"
                 disabled={!isActive}
               >
@@ -137,7 +137,7 @@ export function EventActions({
         <p
           className={`rounded-md px-3 py-2 text-sm ${
             latestState.ok
-              ? "bg-emerald-50 text-emerald-800"
+              ? "bg-[#EAF5F8] text-[#004F6E]"
               : "bg-red-50 text-red-700"
           }`}
         >
