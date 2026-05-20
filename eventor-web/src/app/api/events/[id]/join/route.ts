@@ -1,6 +1,10 @@
 import { getApiUser } from "@/lib/api/auth";
-import { apiError, invalidEventIdResponse, parseEventId } from "@/lib/api/responses";
+import { apiError, apiJson, apiOptions, invalidEventIdResponse, parseEventId } from "@/lib/api/responses";
 import { joinEvent } from "@/services/events";
+
+export function OPTIONS() {
+  return apiOptions();
+}
 
 export async function POST(
   request: Request,
@@ -21,5 +25,5 @@ export async function POST(
 
   const result = await joinEvent(currentUser.id, eventId);
 
-  return Response.json(result, { status: result.ok ? 200 : 400 });
+  return apiJson(result, { status: result.ok ? 200 : 400 });
 }

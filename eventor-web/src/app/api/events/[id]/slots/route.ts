@@ -1,6 +1,10 @@
 import { getApiUser } from "@/lib/api/auth";
-import { apiError, invalidEventIdResponse, parseEventId } from "@/lib/api/responses";
+import { apiError, apiJson, apiOptions, invalidEventIdResponse, parseEventId } from "@/lib/api/responses";
 import { updateEventExtraSlots } from "@/services/events";
+
+export function OPTIONS() {
+  return apiOptions();
+}
 
 export async function POST(
   request: Request,
@@ -35,7 +39,7 @@ export async function POST(
 
   const result = await updateEventExtraSlots(currentUser.id, eventId, extraSlots);
 
-  return Response.json(result, { status: result.ok ? 200 : 400 });
+  return apiJson(result, { status: result.ok ? 200 : 400 });
 }
 
 function getExtraSlots(body: unknown) {

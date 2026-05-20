@@ -14,6 +14,7 @@
 - TypeScript
 - PostgreSQL database hosted in Neon
 - Drizzle Kit migrations for all database schema changes
+- Back-end API source code: `..\eventor-web\scr\api`
 
 # Architectural Guidelines
 

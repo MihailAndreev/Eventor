@@ -1,6 +1,10 @@
 import { getApiUser } from "@/lib/api/auth";
-import { apiError, serializeEventListItem } from "@/lib/api/responses";
+import { apiError, apiJson, apiOptions, serializeEventListItem } from "@/lib/api/responses";
 import { getUserActiveEventsPage } from "@/services/events";
+
+export function OPTIONS() {
+  return apiOptions();
+}
 
 export async function GET(request: Request) {
   const currentUser = await getApiUser(request);
@@ -14,7 +18,7 @@ export async function GET(request: Request) {
   const pageSize = getPositiveIntegerQueryParam(url, "pageSize", 20);
   const result = await getUserActiveEventsPage(currentUser.id, { page, pageSize });
 
-  return Response.json({
+  return apiJson({
     data: result.events.map(serializeEventListItem),
     paging: {
       page: result.page,
