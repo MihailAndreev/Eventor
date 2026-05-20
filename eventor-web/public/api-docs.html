@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eventor REST API Documentation</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #f7faf9;
+      --panel: #ffffff;
+      --ink: #102028;
+      --muted: #4c5f67;
+      --line: #d8e5e1;
+      --brand: #005f73;
+      --brand-soft: #e5f3f2;
+      --code: #0f172a;
+      --code-bg: #f1f5f9;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 42px 0 64px;
+    }
+
+    header {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 26px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.25rem);
+    }
+
+    h2 {
+      margin-top: 34px;
+      font-size: 1.5rem;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 1.05rem;
+    }
+
+    p,
+    li {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    a {
+      color: var(--brand);
+      font-weight: 700;
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92rem;
+    }
+
+    code {
+      border-radius: 6px;
+      background: var(--code-bg);
+      color: var(--code);
+      padding: 0.12rem 0.32rem;
+    }
+
+    pre {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--code);
+      line-height: 1.55;
+      padding: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    th {
+      background: #eef6f4;
+      color: #263940;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .summary-item,
+    .endpoint,
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 16px;
+    }
+
+    .summary-item strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--ink);
+    }
+
+    .endpoint {
+      margin-top: 18px;
+    }
+
+    .endpoint-title {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .method {
+      border-radius: 6px;
+      background: var(--brand-soft);
+      color: var(--brand);
+      font-weight: 800;
+      padding: 5px 9px;
+    }
+
+    .path {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-weight: 800;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 4px 9px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .danger {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    @media (max-width: 720px) {
+      main {
+        width: min(100% - 20px, 1120px);
+        padding-top: 24px;
+      }
+
+      th,
+      td {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Eventor REST API</h1>
+      <p>
+        Minimal mobile API for Expo clients. It supports login, listing active events,
+        reading event details, joining, leaving, and reserving extra slots.
+      </p>
+      <div class="summary">
+        <div class="summary-item">
+          <strong>Base URL</strong>
+          <code>/api</code>
+        </div>
+        <div class="summary-item">
+          <strong>Format</strong>
+          JSON requests and JSON responses, except this documentation page.
+        </div>
+        <div class="summary-item">
+          <strong>Authentication</strong>
+          Send <code>Authorization: Bearer &lt;token&gt;</code> on protected endpoints.
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <h2>Authentication</h2>
+      <p>
+        Call <code>POST /api/auth/login</code> with an existing user email and password.
+        Store the returned JWT token in the mobile app and attach it as a bearer token
+        for every events endpoint.
+      </p>
+      <pre>Authorization: Bearer eyJhbGciOiJIUzI1NiIs...</pre>
+      <div class="note">
+        <p>
+          Web pages use cookies, but this REST API uses bearer tokens so native mobile
+          clients do not need browser session cookies.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Common Responses</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Meaning</th>
+            <th>Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>200</code></td>
+            <td>Request succeeded.</td>
+            <td>Endpoint-specific JSON payload.</td>
+          </tr>
+          <tr>
+            <td><code>400</code></td>
+            <td>Invalid input, full event, inactive event, or unsupported action.</td>
+            <td><code>{ "error": "Message" }</code> or <code>{ "ok": false, "message": "Message" }</code></td>
+          </tr>
+          <tr>
+            <td><code>401</code></td>
+            <td>Missing or invalid bearer token.</td>
+            <td><code>{ "error": "Missing or invalid bearer token." }</code></td>
+          </tr>
+          <tr>
+            <td><code>403</code></td>
+            <td>The user is not a member of the group that owns the event.</td>
+            <td><code>{ "error": "You are not a member of this event group." }</code></td>
+          </tr>
+          <tr>
+            <td><code>404</code></td>
+            <td>Event id is invalid or the event does not exist.</td>
+            <td><code>{ "error": "Event not found." }</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="endpoint" id="login">
+      <div class="endpoint-title">
+        <span class="method">POST</span>
+        <span class="path">/api/auth/login</span>
+        <span class="badge">Public</span>
+      </div>
+      <p>Login by email and password. Returns a JWT bearer token and basic user data.</p>
+
+      <h3>Request Body</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>email</code></td>
+            <td>string</td>
+            <td>Yes</td>
+            <td>User email address.</td>
+          </tr>
+          <tr>
+            <td><code>password</code></td>
+            <td>string</td>
+            <td>Yes</td>
+            <td>User password.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grid">
+        <div>
+          <h3>Example Request</h3>
+          <pre>curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alex@example.com",
+    "password": "password123"
+  }'</pre>
+        </div>
+        <div>
+          <h3>Example Response</h3>
+          <pre>{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "tokenType": "Bearer",
+  "user": {
+    "id": 1,
+    "email": "alex@example.com",
+    "name": "Alex Morgan",
+    "role": "user"
+  }
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="endpoint" id="list-events">
+      <div class="endpoint-title">
+        <span class="method">GET</span>
+        <span class="path">/api/events</span>
+        <span class="badge">Bearer token required</span>
+      </div>
+      <p>
+        Lists active events open for joining. Results include only upcoming and current
+        events that are not canceled, and only events from groups where the logged-in
+        user is a member.
+      </p>
+
+      <h3>Query Parameters</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>page</code></td>
+            <td>integer</td>
+            <td><code>1</code></td>
+            <td>One-based page number.</td>
+          </tr>
+          <tr>
+            <td><code>pageSize</code></td>
+            <td>integer</td>
+            <td><code>20</code></td>
+            <td>Items per page. Maximum returned by the service is <code>100</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Example Request</h3>
+      <pre>curl "http://localhost:3001/api/events?page=1&amp;pageSize=20" \
+  -H "Authorization: Bearer &lt;token&gt;"</pre>
+
+      <h3>Example Response</h3>
+      <pre>{
+  "data": [
+    {
+      "id": 42,
+      "title": "Saturday Hike",
+      "description": "Meet at the trailhead.",
+      "date": "2026-06-06",
+      "time": "09:30:00",
+      "startAt": "2026-06-06T09:30:00.000Z",
+      "location": "North Ridge",
+      "group": {
+        "id": 7,
+        "title": "Weekend Hikers",
+        "slug": "weekend-hikers-7"
+      },
+      "state": "upcoming",
+      "capacity": 12,
+      "unlimitedCapacity": false,
+      "capacityState": "under_capacity",
+      "isJoined": false,
+      "participantsJoined": 5,
+      "reservedSlots": 2,
+      "attendeeCount": 7,
+      "isJoinable": true
+    }
+  ],
+  "paging": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "totalPages": 1
+  }
+}</pre>
+    </section>
+
+    <section class="endpoint" id="event-details">
+      <div class="endpoint-title">
+        <span class="method">GET</span>
+        <span class="path">/api/events/{id}</span>
+        <span class="badge">Bearer token required</span>
+      </div>
+      <p>
+        Returns event details for a group member, including the current user's joined
+        state, extra reserved slots, participants, and comments.
+      </p>
+
+      <h3>Path Parameters</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>id</code></td>
+            <td>integer</td>
+            <td>Event id.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Example Request</h3>
+      <pre>curl http://localhost:3001/api/events/42 \
+  -H "Authorization: Bearer &lt;token&gt;"</pre>
+
+      <h3>Example Response</h3>
+      <pre>{
+  "data": {
+    "id": 42,
+    "title": "Saturday Hike",
+    "description": "Meet at the trailhead.",
+    "date": "2026-06-06",
+    "time": "09:30:00",
+    "startAt": "2026-06-06T09:30:00.000Z",
+    "location": "North Ridge",
+    "group": {
+      "id": 7,
+      "title": "Weekend Hikers",
+      "slug": "weekend-hikers-7"
+    },
+    "state": "upcoming",
+    "capacity": 12,
+    "unlimitedCapacity": false,
+    "capacityState": "under_capacity",
+    "isJoined": true,
+    "participantsJoined": 5,
+    "reservedSlots": 2,
+    "attendeeCount": 7,
+    "isJoinable": true,
+    "commentsCount": 1,
+    "currentUserReservedSlots": 1,
+    "participants": [
+      {
+        "id": 1,
+        "name": "Alex Morgan",
+        "extraSlots": 1
+      }
+    ],
+    "comments": [
+      {
+        "id": 9,
+        "text": "I can bring snacks.",
+        "createdAt": "2026-05-20T10:15:00.000Z",
+        "authorName": "Alex Morgan"
+      }
+    ]
+  }
+}</pre>
+    </section>
+
+    <section class="endpoint" id="join-event">
+      <div class="endpoint-title">
+        <span class="method">POST</span>
+        <span class="path">/api/events/{id}/join</span>
+        <span class="badge">Bearer token required</span>
+      </div>
+      <p>
+        Joins an active event if the user is a member of the owning group and capacity
+        allows it. Calling this endpoint when already joined is safe.
+      </p>
+
+      <h3>Example Request</h3>
+      <pre>curl -X POST http://localhost:3001/api/events/42/join \
+  -H "Authorization: Bearer &lt;token&gt;"</pre>
+
+      <h3>Example Response</h3>
+      <pre>{
+  "ok": true,
+  "message": "Joined event."
+}</pre>
+    </section>
+
+    <section class="endpoint" id="leave-event">
+      <div class="endpoint-title">
+        <span class="method">POST</span>
+        <span class="path">/api/events/{id}/leave</span>
+        <span class="badge">Bearer token required</span>
+      </div>
+      <p>
+        Leaves an event by marking the user's participation as not going. Any extra
+        reserved slots are cleared. Calling this endpoint when not joined is safe.
+      </p>
+
+      <h3>Example Request</h3>
+      <pre>curl -X POST http://localhost:3001/api/events/42/leave \
+  -H "Authorization: Bearer &lt;token&gt;"</pre>
+
+      <h3>Example Response</h3>
+      <pre>{
+  "ok": true,
+  "message": "Left event."
+}</pre>
+    </section>
+
+    <section class="endpoint" id="reserve-slots">
+      <div class="endpoint-title">
+        <span class="method">POST</span>
+        <span class="path">/api/events/{id}/slots</span>
+        <span class="badge">Bearer token required</span>
+      </div>
+      <p>
+        Sets extra reserved slots for friends or family members. The value represents
+        additional people beyond the logged-in user. The user must already be joined.
+      </p>
+
+      <h3>Request Body</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>extraSlots</code></td>
+            <td>integer</td>
+            <td>Yes</td>
+            <td>Non-negative number of additional slots to reserve.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Example Request</h3>
+      <pre>curl -X POST http://localhost:3001/api/events/42/slots \
+  -H "Authorization: Bearer &lt;token&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "extraSlots": 2
+  }'</pre>
+
+      <h3>Example Response</h3>
+      <pre>{
+  "ok": true,
+  "message": "Reserved slots updated."
+}</pre>
+    </section>
+
+    <section>
+      <h2>Field Notes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>state</code></td>
+            <td>One of <code>upcoming</code>, <code>current</code>, or <code>past</code>. List responses only include <code>upcoming</code> and <code>current</code>.</td>
+          </tr>
+          <tr>
+            <td><code>capacityState</code></td>
+            <td>One of <code>unlimited</code>, <code>under_capacity</code>, <code>full_capacity</code>, or <code>over_capacity</code>.</td>
+          </tr>
+          <tr>
+            <td><code>participantsJoined</code></td>
+            <td>Number of users joined as participants. This does not include extra reserved slots.</td>
+          </tr>
+          <tr>
+            <td><code>reservedSlots</code></td>
+            <td>Total extra slots reserved by all participants.</td>
+          </tr>
+          <tr>
+            <td><code>attendeeCount</code></td>
+            <td>Total attendance count: participants plus all extra reserved slots.</td>
+          </tr>
+          <tr>
+            <td><code>currentUserReservedSlots</code></td>
+            <td>Extra slots reserved by the logged-in user on the event details endpoint.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Expo Client Flow</h2>
+      <ol>
+        <li>Call <code>POST /api/auth/login</code> and store <code>token</code>.</li>
+        <li>Call <code>GET /api/events</code> with the bearer token to show joinable events.</li>
+        <li>Call <code>GET /api/events/{id}</code> before showing a details screen.</li>
+        <li>Use <code>POST /join</code>, <code>POST /leave</code>, and <code>POST /slots</code> for event actions.</li>
+        <li>Refresh event details after each mutation to show updated capacity and joined state.</li>
+      </ol>
+      <p class="danger">
+        Never ship test credentials in the mobile app. Use secure environment configuration
+        for the API base URL.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

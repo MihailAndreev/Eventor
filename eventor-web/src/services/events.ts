@@ -86,6 +86,14 @@ export type EventMutationResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
+export type PagedEventsResult = {
+  events: DashboardEvent[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 export async function getUserDashboardEvents(userId: number) {
   const [userGroups, eventRows] = await Promise.all([
     getUserDashboardGroups(userId),
@@ -101,6 +109,30 @@ export async function getUserDashboardEvents(userId: number) {
     archiveEvents: eventsWithStats
       .filter((event) => !event.isActive)
       .sort((a, b) => b.startAt.getTime() - a.startAt.getTime()),
+  };
+}
+
+export async function getUserActiveEventsPage(
+  userId: number,
+  input: { page?: number; pageSize?: number } = {},
+): Promise<PagedEventsResult> {
+  const page = normalizePositiveInteger(input.page, 1);
+  const pageSize = Math.min(normalizePositiveInteger(input.pageSize, 20), 100);
+  const eventRows = await getUserEventRows(userId);
+  const eventsWithStats = await hydrateEvents(eventRows, userId);
+  const activeEvents = eventsWithStats
+    .filter((event) => event.isActive)
+    .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+  const total = activeEvents.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const offset = (page - 1) * pageSize;
+
+  return {
+    events: activeEvents.slice(offset, offset + pageSize),
+    page,
+    pageSize,
+    total,
+    totalPages,
   };
 }
 
@@ -534,4 +566,12 @@ function getEventCapacityState(
   }
 
   return "under_capacity";
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    return fallback;
+  }
+
+  return value;
 }
