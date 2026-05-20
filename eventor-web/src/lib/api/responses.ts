@@ -1,30 +1,7 @@
 import type { DashboardEvent } from "@/services/events";
 
-export const corsHeaders = {
-  "Access-Control-Allow-Headers": "Authorization, Content-Type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Origin": "*",
-};
-
-export function apiJson(data: unknown, init?: ResponseInit) {
-  return Response.json(data, {
-    ...init,
-    headers: {
-      ...corsHeaders,
-      ...init?.headers,
-    },
-  });
-}
-
 export function apiError(message: string, status = 400) {
-  return apiJson({ error: message }, { status });
-}
-
-export function apiOptions() {
-  return new Response(null, {
-    headers: corsHeaders,
-    status: 204,
-  });
+  return Response.json({ error: message }, { status });
 }
 
 export function invalidEventIdResponse() {

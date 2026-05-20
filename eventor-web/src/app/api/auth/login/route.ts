@@ -1,10 +1,6 @@
 import { signSessionToken } from "@/lib/auth/jwt";
-import { apiError, apiJson, apiOptions } from "@/lib/api/responses";
+import { apiError } from "@/lib/api/responses";
 import { loginUser } from "@/services/users";
-
-export function OPTIONS() {
-  return apiOptions();
-}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -31,7 +27,7 @@ export async function POST(request: Request) {
     role: result.user.role,
   });
 
-  return apiJson({
+  return Response.json({
     token,
     tokenType: "Bearer",
     user: result.user,

@@ -1,10 +1,6 @@
 import { getApiUser } from "@/lib/api/auth";
-import { apiError, apiJson, apiOptions, invalidEventIdResponse, parseEventId } from "@/lib/api/responses";
+import { apiError, invalidEventIdResponse, parseEventId } from "@/lib/api/responses";
 import { leaveEvent } from "@/services/events";
-
-export function OPTIONS() {
-  return apiOptions();
-}
 
 export async function POST(
   request: Request,
@@ -25,5 +21,5 @@ export async function POST(
 
   const result = await leaveEvent(currentUser.id, eventId);
 
-  return apiJson(result, { status: result.ok ? 200 : 400 });
+  return Response.json(result, { status: result.ok ? 200 : 400 });
 }

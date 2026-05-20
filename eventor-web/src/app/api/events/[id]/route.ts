@@ -1,17 +1,11 @@
 import { getApiUser } from "@/lib/api/auth";
 import {
   apiError,
-  apiJson,
-  apiOptions,
   invalidEventIdResponse,
   parseEventId,
   serializeEventDetails,
 } from "@/lib/api/responses";
 import { getUserEventAccess } from "@/services/events";
-
-export function OPTIONS() {
-  return apiOptions();
-}
 
 export async function GET(
   request: Request,
@@ -38,5 +32,5 @@ export async function GET(
       : invalidEventIdResponse();
   }
 
-  return apiJson({ data: serializeEventDetails(access.event) });
+  return Response.json({ data: serializeEventDetails(access.event) });
 }

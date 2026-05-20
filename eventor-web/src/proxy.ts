@@ -4,11 +4,28 @@ import { verifySessionToken } from "./lib/auth/jwt";
 
 const publicPaths = new Set(["/", "/login", "/register"]);
 
+const corsHeaders = {
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+};
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
+    if (request.method === "OPTIONS") {
+      return new NextResponse(null, {
+        headers: corsHeaders,
+        status: 204,
+      });
+    }
+
+    const response = NextResponse.next();
+
+    setCorsHeaders(response);
+
+    return response;
   }
 
   if (publicPaths.has(pathname)) {
@@ -35,5 +52,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/api/:path*", "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };
+
+function setCorsHeaders(response: NextResponse) {
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    response.headers.set(key, value);
+  }
+}
