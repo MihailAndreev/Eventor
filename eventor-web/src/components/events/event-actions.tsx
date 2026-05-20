@@ -24,7 +24,9 @@ export function EventActions({
   extraSlots,
   sharePath,
 }: EventActionsProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
   const [slotValue, setSlotValue] = useState(extraSlots);
   const [joinState, joinAction] = useActionState(
     joinEventAction.bind(null, eventId),
@@ -44,9 +46,15 @@ export function EventActions({
 
   async function copyEventLink() {
     const url = new URL(sharePath, window.location.origin).toString();
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+
+    try {
+      await copyTextToClipboard(url);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+
+    window.setTimeout(() => setCopyStatus("idle"), 1800);
   }
 
   return (
@@ -62,10 +70,14 @@ export function EventActions({
         </div>
         <button
           type="button"
-          onClick={copyEventLink}
+          onClick={() => void copyEventLink()}
           className="h-11 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
         >
-          {copied ? "Copied" : "Share event link"}
+          {copyStatus === "copied"
+            ? "Copied"
+            : copyStatus === "failed"
+              ? "Copy failed"
+              : "Share event link"}
         </button>
       </div>
 
@@ -146,6 +158,32 @@ export function EventActions({
       ) : null}
     </section>
   );
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textArea = document.createElement("textarea");
+
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+
+    if (!copied) {
+      throw new Error("Copy command failed.");
+    }
+  } finally {
+    textArea.remove();
+  }
 }
 
 function SubmitButton({
