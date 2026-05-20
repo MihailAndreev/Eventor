@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -45,65 +46,74 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={88}
         style={styles.keyboardView}
       >
-        <View style={styles.form}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Log in</Text>
-            <Text style={styles.subtitle}>Use your Eventor account to continue.</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.form}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Log in</Text>
+              <Text style={styles.subtitle}>Use your Eventor account to continue.</Text>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                autoCapitalize="none"
+                autoComplete="email"
+                editable={!isSubmitting}
+                inputMode="email"
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                returnKeyType="next"
+                style={styles.input}
+                textContentType="emailAddress"
+                value={email}
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                editable={!isSubmitting}
+                onChangeText={setPassword}
+                onSubmitEditing={handleSubmit}
+                placeholder="Password"
+                returnKeyType="done"
+                secureTextEntry
+                style={styles.input}
+                textContentType="password"
+                value={password}
+              />
+            </View>
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isSubmitting}
+              onPress={handleSubmit}
+              style={({ pressed }) => [
+                styles.submitButton,
+                (pressed || isSubmitting) && styles.submitButtonPressed,
+              ]}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.submitButtonText}>Log in</Text>
+              )}
+            </Pressable>
+
+            <Link href="/" style={styles.homeLink}>
+              Back to Home
+            </Link>
           </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              autoCapitalize="none"
-              autoComplete="email"
-              editable={!isSubmitting}
-              inputMode="email"
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              style={styles.input}
-              textContentType="emailAddress"
-              value={email}
-            />
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              editable={!isSubmitting}
-              onChangeText={setPassword}
-              placeholder="Password"
-              secureTextEntry
-              style={styles.input}
-              textContentType="password"
-              value={password}
-            />
-          </View>
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSubmitting}
-            onPress={handleSubmit}
-            style={({ pressed }) => [
-              styles.submitButton,
-              (pressed || isSubmitting) && styles.submitButtonPressed,
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Log in</Text>
-            )}
-          </Pressable>
-
-          <Link href="/" style={styles.homeLink}>
-            Back to Home
-          </Link>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -116,8 +126,12 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
+    paddingBottom: 48,
   },
   form: {
     width: '100%',

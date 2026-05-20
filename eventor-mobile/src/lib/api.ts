@@ -1,3 +1,6 @@
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
 export type LoginUser = {
   id: number;
   email: string;
@@ -74,7 +77,7 @@ type EventMutationResponse = {
   message: string;
 };
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+const API_BASE_URL = getApiBaseUrl();
 
 if (!API_BASE_URL) {
   throw new Error('Missing EXPO_PUBLIC_API_BASE_URL.');
@@ -186,4 +189,32 @@ async function eventMutation(path: string, token: string, body?: Record<string, 
   }
 
   return result;
+}
+
+function getApiBaseUrl() {
+  const configuredUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+  if (!configuredUrl || Platform.OS === 'web') {
+    return configuredUrl;
+  }
+
+  try {
+    const url = new URL(configuredUrl);
+
+    if (!['localhost', '127.0.0.1'].includes(url.hostname)) {
+      return configuredUrl;
+    }
+
+    const metroHost = Constants.expoConfig?.hostUri?.split(':')[0];
+
+    if (!metroHost) {
+      return configuredUrl;
+    }
+
+    url.hostname = metroHost;
+
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return configuredUrl;
+  }
 }
