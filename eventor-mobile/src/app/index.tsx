@@ -2,6 +2,7 @@ import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EventorLogo } from '@/components/eventor-logo';
 import { useAuth } from '@/lib/auth-context';
 
 export default function HomeScreen() {
@@ -10,6 +11,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        <EventorLogo />
         <Text style={styles.title}>Welcome to Eventor</Text>
         <Text style={styles.message}>Plan, organize, and join shared events with your groups.</Text>
         {isAuthenticated ? (

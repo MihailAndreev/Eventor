@@ -172,11 +172,11 @@ function EventCard({ event, onPress }: { event: EventListItem; onPress: () => vo
 
         <View style={styles.badgeStack}>
           <View style={[styles.statusBadge, event.state === 'current' && styles.currentBadge]}>
-            <Text style={styles.statusText}>{formatStatus(event.state)}</Text>
+            <Text style={styles.statusText}>{getStatusEmoji(event.state)} {formatStatus(event.state)}</Text>
           </View>
           <View style={[styles.joinBadge, event.isJoined && styles.joinedBadge]}>
             <Text style={[styles.joinBadgeText, event.isJoined && styles.joinedBadgeText]}>
-              {event.isJoined ? 'Joined' : 'Not joined'}
+              {event.isJoined ? '✅ Joined' : '○ Not joined'}
             </Text>
           </View>
         </View>
@@ -187,21 +187,24 @@ function EventCard({ event, onPress }: { event: EventListItem; onPress: () => vo
       </Text>
 
       <View style={styles.metaGrid}>
-        <MetaPill label="Date" value={formatDateTime(event.startAt)} />
-        <MetaPill label="Place" value={event.location || 'Location TBD'} />
-        <MetaPill label="Capacity" value={attendeeLabel} />
+        <MetaPill emoji="📅" label="Date" value={formatDateTime(event.startAt)} />
+        <MetaPill emoji="📍" label="Place" value={event.location || 'Location TBD'} />
+        <MetaPill emoji="👥" label="Capacity" value={attendeeLabel} />
       </View>
     </Pressable>
   );
 }
 
-function MetaPill({ label, value }: { label: string; value: string }) {
+function MetaPill({ emoji, label, value }: { emoji: string; label: string; value: string }) {
   return (
     <View style={styles.metaPill}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text numberOfLines={2} style={styles.metaValue}>
-        {value}
-      </Text>
+      <Text style={styles.metaEmoji}>{emoji}</Text>
+      <View style={styles.metaTextBlock}>
+        <Text style={styles.metaLabel}>{label}</Text>
+        <Text numberOfLines={2} style={styles.metaValue}>
+          {value}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -221,6 +224,18 @@ function formatDateTime(value: string) {
 
 function formatStatus(status: string) {
   return status.replace(/_/g, ' ');
+}
+
+function getStatusEmoji(status: string) {
+  if (status === 'current') {
+    return '⚡';
+  }
+
+  if (status === 'past') {
+    return '⏳';
+  }
+
+  return '🌱';
 }
 
 const styles = StyleSheet.create({
@@ -359,12 +374,28 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   metaPill: {
-    gap: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     padding: 10,
     borderWidth: 1,
     borderColor: '#edf0ed',
     borderRadius: 8,
     backgroundColor: '#fbfcfb',
+  },
+  metaEmoji: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    color: '#18201c',
+    fontSize: 17,
+    lineHeight: 28,
+    textAlign: 'center',
+    backgroundColor: '#eef5f2',
+  },
+  metaTextBlock: {
+    flex: 1,
+    gap: 3,
   },
   metaLabel: {
     color: '#607066',
