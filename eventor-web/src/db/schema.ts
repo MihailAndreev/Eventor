@@ -68,7 +68,10 @@ export const groups = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("groups_created_by_user_id_idx").on(table.createdByUserId)],
+  (table) => [
+    index("groups_created_by_user_id_idx").on(table.createdByUserId),
+    index("groups_title_idx").on(table.title),
+  ],
 );
 
 export const groupMembers = pgTable(
@@ -144,6 +147,7 @@ export const events = pgTable(
   },
   (table) => [
     index("events_group_id_event_date_event_time_idx").on(table.groupId, table.eventDate, table.eventTime),
+    index("events_event_date_event_time_idx").on(table.eventDate, table.eventTime),
     index("events_created_by_user_id_idx").on(table.createdByUserId),
     index("events_canceled_idx").on(table.canceled),
   ],
@@ -207,6 +211,7 @@ export const eventComments = pgTable(
   },
   (table) => [
     index("event_comments_event_id_created_at_idx").on(table.eventId, table.createdAt),
+    index("event_comments_created_at_idx").on(table.createdAt),
     index("event_comments_user_id_idx").on(table.userId),
   ],
 );

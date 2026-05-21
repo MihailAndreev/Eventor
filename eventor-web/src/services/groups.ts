@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomBytes } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   eventParticipants,
@@ -27,6 +27,20 @@ export type UserGroupSummary = {
   memberCount: number;
   activeEventCount: number;
   currentUserIsManager: boolean;
+};
+
+export type UserGroupsPageInput = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+};
+
+export type UserGroupsPageResult = {
+  groups: UserGroupSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 };
 
 export type GroupMemberSummary = {
@@ -154,6 +168,90 @@ export async function getUserGroups(userId: number): Promise<UserGroupSummary[]>
     memberCount: memberCountsByGroup.get(group.id) ?? 0,
     activeEventCount: activeEventCountsByGroup.get(group.id) ?? 0,
   }));
+}
+
+export async function getUserGroupsPage(
+  userId: number,
+  input: UserGroupsPageInput = {},
+): Promise<UserGroupsPageResult> {
+  const page = normalizePositiveInteger(input.page, 1);
+  const pageSize = Math.min(normalizePositiveInteger(input.pageSize, 20), 50);
+  const offset = (page - 1) * pageSize;
+  const search = normalizeSearch(input.search);
+  const filters = [
+    eq(groupMembers.userId, userId),
+    ...(search ? [ilike(groups.title, `%${search}%`)] : []),
+  ];
+
+  const [totalRow] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(groupMembers)
+    .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+    .where(and(...filters));
+  const total = totalRow?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const userGroupRows = await db
+    .select({
+      id: groups.id,
+      title: groups.title,
+      description: groups.description,
+      coverImageUrl: groups.coverImageUrl,
+      currentUserIsManager: groupMembers.isManager,
+    })
+    .from(groupMembers)
+    .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+    .where(and(...filters))
+    .orderBy(asc(groups.title), asc(groups.id))
+    .limit(pageSize)
+    .offset(offset);
+
+  if (userGroupRows.length === 0) {
+    return {
+      groups: [],
+      page,
+      pageSize,
+      total,
+      totalPages,
+    };
+  }
+
+  const groupIds = userGroupRows.map((group) => group.id);
+  const [memberCountRows, activeEventCountRows] = await Promise.all([
+    db
+      .select({
+        groupId: groupMembers.groupId,
+        memberCount: sql<number>`count(*)::int`,
+      })
+      .from(groupMembers)
+      .where(inArray(groupMembers.groupId, groupIds))
+      .groupBy(groupMembers.groupId),
+    db
+      .select({
+        groupId: events.groupId,
+        activeEventCount: sql<number>`count(*)::int`,
+      })
+      .from(events)
+      .where(and(inArray(events.groupId, groupIds), getActiveEventFilter()))
+      .groupBy(events.groupId),
+  ]);
+  const memberCountsByGroup = new Map(
+    memberCountRows.map((row) => [row.groupId, row.memberCount]),
+  );
+  const activeEventCountsByGroup = new Map(
+    activeEventCountRows.map((row) => [row.groupId, row.activeEventCount]),
+  );
+
+  return {
+    groups: userGroupRows.map((group) => ({
+      ...group,
+      memberCount: memberCountsByGroup.get(group.id) ?? 0,
+      activeEventCount: activeEventCountsByGroup.get(group.id) ?? 0,
+    })),
+    page,
+    pageSize,
+    total,
+    totalPages,
+  };
 }
 
 export async function getUserGroupAccess(
@@ -934,6 +1032,20 @@ function getEventStartAt(eventDate: string, eventTime: string) {
     timeWithoutFraction.length === 5 ? `${timeWithoutFraction}:00` : timeWithoutFraction;
 
   return new Date(`${eventDate}T${normalizedTime}`);
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    return fallback;
+  }
+
+  return value;
+}
+
+function normalizeSearch(value: string | undefined) {
+  const search = value?.trim();
+
+  return search ? search.slice(0, 120) : undefined;
 }
 
 function getGroupAccessMutationError(

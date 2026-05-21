@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   eventComments,
@@ -285,7 +285,7 @@ export async function getAdminEventsPage(
     .from(events)
     .innerJoin(groups, eq(events.groupId, groups.id))
     .where(baseFilter);
-  const rows = await db
+  const eventRows = await db
     .select({
       id: events.id,
       title: events.title,
@@ -294,20 +294,61 @@ export async function getAdminEventsPage(
       eventDate: events.eventDate,
       eventTime: events.eventTime,
       canceled: events.canceled,
-      participantCount: sql<number>`count(distinct ${eventParticipants.id}) filter (where ${eventParticipants.status} = 'going')::int`,
-      commentCount: sql<number>`count(distinct ${eventComments.id})::int`,
-      linkCount: sql<number>`count(distinct ${eventLinks.id})::int`,
     })
     .from(events)
     .innerJoin(groups, eq(events.groupId, groups.id))
-    .leftJoin(eventParticipants, eq(eventParticipants.eventId, events.id))
-    .leftJoin(eventComments, eq(eventComments.eventId, events.id))
-    .leftJoin(eventLinks, eq(eventLinks.eventId, events.id))
     .where(baseFilter)
-    .groupBy(events.id, groups.id)
     .orderBy(desc(sql`${events.eventDate} + ${events.eventTime}`), asc(events.id))
     .limit(pageSize)
     .offset(offset);
+  const eventIds = eventRows.map((event) => event.id);
+
+  if (eventIds.length === 0) {
+    return getPagedResult([], page, pageSize, totalRow?.total ?? 0);
+  }
+
+  const [participantRows, commentRows, linkRows] = await Promise.all([
+    db
+      .select({
+        eventId: eventParticipants.eventId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(eventParticipants)
+      .where(
+        and(
+          inArray(eventParticipants.eventId, eventIds),
+          eq(eventParticipants.status, "going"),
+        ),
+      )
+      .groupBy(eventParticipants.eventId),
+    db
+      .select({
+        eventId: eventComments.eventId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(eventComments)
+      .where(inArray(eventComments.eventId, eventIds))
+      .groupBy(eventComments.eventId),
+    db
+      .select({
+        eventId: eventLinks.eventId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(eventLinks)
+      .where(inArray(eventLinks.eventId, eventIds))
+      .groupBy(eventLinks.eventId),
+  ]);
+  const participantCounts = new Map(
+    participantRows.map((row) => [row.eventId, row.count]),
+  );
+  const commentCounts = new Map(commentRows.map((row) => [row.eventId, row.count]));
+  const linkCounts = new Map(linkRows.map((row) => [row.eventId, row.count]));
+  const rows = eventRows.map((event) => ({
+    ...event,
+    participantCount: participantCounts.get(event.id) ?? 0,
+    commentCount: commentCounts.get(event.id) ?? 0,
+    linkCount: linkCounts.get(event.id) ?? 0,
+  }));
 
   return getPagedResult(rows, page, pageSize, totalRow?.total ?? 0);
 }

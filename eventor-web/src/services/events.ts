@@ -229,49 +229,49 @@ export async function getUserDashboardEventsPage(
       ? baseFilters
       : [...baseFilters, eq(events.groupId, input.groupId)];
 
-  const [totalRow] = await db
-    .select({ total: sql<number>`count(*)::int` })
-    .from(events)
-    .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
-    .where(and(...groupScopedFilters));
-
-  const countRows = await db
-    .select({
-      groupId: events.groupId,
-      groupTitle: groups.title,
-      total: sql<number>`count(*)::int`,
-    })
-    .from(events)
-    .innerJoin(groups, eq(events.groupId, groups.id))
-    .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
-    .where(and(...baseFilters))
-    .groupBy(events.groupId, groups.title);
-
+  const orderBy = getDashboardViewOrder(view);
+  const [[totalRow], countRows, eventRows] = await Promise.all([
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(events)
+      .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
+      .where(and(...groupScopedFilters)),
+    db
+      .select({
+        groupId: events.groupId,
+        groupTitle: groups.title,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(events)
+      .innerJoin(groups, eq(events.groupId, groups.id))
+      .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
+      .where(and(...baseFilters))
+      .groupBy(events.groupId, groups.title),
+    db
+      .select({
+        id: events.id,
+        groupId: events.groupId,
+        title: events.title,
+        description: events.description,
+        groupTitle: groups.title,
+        eventDate: events.eventDate,
+        eventTime: events.eventTime,
+        location: events.location,
+        capacity: events.capacity,
+        canceled: events.canceled,
+        createdByUserId: events.createdByUserId,
+        coverImageUrl: events.coverImageUrl,
+      })
+      .from(events)
+      .innerJoin(groups, eq(events.groupId, groups.id))
+      .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
+      .where(and(...groupScopedFilters))
+      .orderBy(orderBy, events.id)
+      .limit(pageSize)
+      .offset(offset),
+  ]);
   const total = totalRow?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const orderBy = getDashboardViewOrder(view);
-  const eventRows = await db
-    .select({
-      id: events.id,
-      groupId: events.groupId,
-      title: events.title,
-      description: events.description,
-      groupTitle: groups.title,
-      eventDate: events.eventDate,
-      eventTime: events.eventTime,
-      location: events.location,
-      capacity: events.capacity,
-      canceled: events.canceled,
-      createdByUserId: events.createdByUserId,
-      coverImageUrl: events.coverImageUrl,
-    })
-    .from(events)
-    .innerJoin(groups, eq(events.groupId, groups.id))
-    .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
-    .where(and(...groupScopedFilters))
-    .orderBy(orderBy, events.id)
-    .limit(pageSize)
-    .offset(offset);
   const pagedEvents = await hydrateEvents(eventRows, userId);
   const sortedEvents = pagedEvents.sort((a, b) =>
     view === "active"
@@ -992,58 +992,57 @@ async function hydrateEvents(
     return [];
   }
 
-  const participantRows = await db
-    .select({
-      eventId: eventParticipants.eventId,
-      userId: users.id,
-      name: users.name,
-      email: users.email,
-      extraSlots: eventParticipants.extraSlots,
-      joinedAt: eventParticipants.joinedAt,
-    })
-    .from(eventParticipants)
-    .innerJoin(users, eq(eventParticipants.userId, users.id))
-    .where(
-      and(
-        inArray(eventParticipants.eventId, eventIds),
-        eq(eventParticipants.status, "going"),
+  const [participantRows, commentRows, commentDetailRows, linkRows] = await Promise.all([
+    db
+      .select({
+        eventId: eventParticipants.eventId,
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        extraSlots: eventParticipants.extraSlots,
+        joinedAt: eventParticipants.joinedAt,
+      })
+      .from(eventParticipants)
+      .innerJoin(users, eq(eventParticipants.userId, users.id))
+      .where(
+        and(
+          inArray(eventParticipants.eventId, eventIds),
+          eq(eventParticipants.status, "going"),
+        ),
       ),
-    );
-
-  const commentRows = await db
-    .select({
-      eventId: eventComments.eventId,
-      commentsCount: sql<number>`count(*)::int`,
-    })
-    .from(eventComments)
-    .where(inArray(eventComments.eventId, eventIds))
-    .groupBy(eventComments.eventId);
-
-  const commentDetailRows = await db
-    .select({
-      id: eventComments.id,
-      eventId: eventComments.eventId,
-      userId: eventComments.userId,
-      text: eventComments.text,
-      createdAt: eventComments.createdAt,
-      updatedAt: eventComments.updatedAt,
-      authorName: users.name,
-    })
-    .from(eventComments)
-    .innerJoin(users, eq(eventComments.userId, users.id))
-    .where(inArray(eventComments.eventId, eventIds))
-    .orderBy(desc(eventComments.createdAt));
-
-  const linkRows = await db
-    .select({
-      id: eventLinks.id,
-      eventId: eventLinks.eventId,
-      title: eventLinks.title,
-      url: eventLinks.url,
-    })
-    .from(eventLinks)
-    .where(inArray(eventLinks.eventId, eventIds))
-    .orderBy(asc(eventLinks.createdAt), asc(eventLinks.id));
+    db
+      .select({
+        eventId: eventComments.eventId,
+        commentsCount: sql<number>`count(*)::int`,
+      })
+      .from(eventComments)
+      .where(inArray(eventComments.eventId, eventIds))
+      .groupBy(eventComments.eventId),
+    db
+      .select({
+        id: eventComments.id,
+        eventId: eventComments.eventId,
+        userId: eventComments.userId,
+        text: eventComments.text,
+        createdAt: eventComments.createdAt,
+        updatedAt: eventComments.updatedAt,
+        authorName: users.name,
+      })
+      .from(eventComments)
+      .innerJoin(users, eq(eventComments.userId, users.id))
+      .where(inArray(eventComments.eventId, eventIds))
+      .orderBy(desc(eventComments.createdAt)),
+    db
+      .select({
+        id: eventLinks.id,
+        eventId: eventLinks.eventId,
+        title: eventLinks.title,
+        url: eventLinks.url,
+      })
+      .from(eventLinks)
+      .where(inArray(eventLinks.eventId, eventIds))
+      .orderBy(asc(eventLinks.createdAt), asc(eventLinks.id)),
+  ]);
 
   const participantsByEvent = new Map<number, DashboardEventParticipant[]>();
   const attendeeCountByEvent = new Map<number, number>();

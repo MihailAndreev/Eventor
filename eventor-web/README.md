@@ -18,6 +18,68 @@ npm run test:integration
 
 Integration tests require `TEST_DATABASE_URL` in `eventor-web/.env`. It must point to a Neon test branch, not production. The integration runner refuses to start when `TEST_DATABASE_URL` is missing or when it matches the original `DATABASE_URL`; during the run it maps `DATABASE_URL` to `TEST_DATABASE_URL`, applies Drizzle migrations, truncates the application tables, and seeds deterministic test data.
 
+## Performance workflow
+
+Use the performance workflow against a dedicated dev/test/performance database before deployment. Do not point it at production.
+
+Required environment:
+
+```bash
+PERFORMANCE_DATABASE_URL=postgres://...
+ALLOW_PERFORMANCE_SEED=true
+JWT_SECRET=...
+```
+
+`TEST_DATABASE_URL` is used when `PERFORMANCE_DATABASE_URL` is not set. If you intentionally use a local `DATABASE_URL`, also set:
+
+```bash
+CONFIRM_DATABASE_URL_PERFORMANCE_SEED=true
+```
+
+Seed the large deterministic dataset:
+
+```bash
+npm run db:seed:performance
+```
+
+This applies Drizzle migrations to the selected performance database, removes only previous performance seed data (`perf-group-*` groups and `@performance.eventor.local` users), and creates:
+
+- 3,000 users
+- 500 groups
+- 5,000 events
+- group memberships and managers
+- event participants, including near-full/full events
+- comments
+- event links
+
+The seed reuses local public placeholder URLs and does not upload files to R2.
+
+Start the local app:
+
+```bash
+npm run dev
+```
+
+Run endpoint timing checks:
+
+```bash
+npm run perf:check
+```
+
+Optional settings:
+
+```bash
+PERFORMANCE_BASE_URL=http://localhost:3000
+PERFORMANCE_SLOW_THRESHOLD_MS=1000
+PERFORMANCE_SEED_PASSWORD=pass123
+```
+
+Seeded logins:
+
+- Admin: `perf-admin@performance.eventor.local`
+- Regular user: `perf-user-0001@performance.eventor.local`
+- Password: `pass123` unless `PERFORMANCE_SEED_PASSWORD` is set.
+
 Eventor is suitable for friends, colleagues, clubs, hobby groups, hiking groups, study groups, family groups and communities with recurring activities.
 
 - The app holds groups, where events are organized.

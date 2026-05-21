@@ -1,9 +1,0 @@
-⚠ Slow filesystem detected. The benchmark took 221ms. If E:\Vibe coding\Eventor\eventor-web/.next/dev is a network drive, consider moving it to a local folder.
-See more: https://nextjs.org/docs/app/guides/local-development
-npm error Lifecycle script `dev` failed with error:
-npm error code 1
-npm error path E:\Vibe coding\Eventor\eventor-web
-npm error workspace eventor-web@0.1.0
-npm error location E:\Vibe coding\Eventor\eventor-web
-npm error command failed
-npm error command C:\WINDOWS\system32\cmd.exe /d /s /c next dev -p 3000

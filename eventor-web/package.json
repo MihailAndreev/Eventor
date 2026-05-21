@@ -14,7 +14,10 @@
     "test:integration:watch": "node scripts/run-integration-tests.mjs --watch",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "drizzle-kit migrate && node scripts/seed.mjs"
+    "db:seed": "drizzle-kit migrate && node scripts/seed.mjs",
+    "db:seed:performance": "node scripts/migrate-performance.mjs && node scripts/seed-performance.mjs",
+    "db:reset:performance": "node scripts/migrate-performance.mjs && node scripts/seed-performance.mjs",
+    "perf:check": "node scripts/check-performance.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1051.0",

@@ -2,20 +2,44 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CoverImage } from "@/components/media/cover-image-manager";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getUserGroups } from "@/services/groups";
+import { getUserGroupsPage } from "@/services/groups";
 
 export const metadata = {
   title: "Groups | Eventor",
 };
 
-export default async function GroupsPage() {
+export default async function GroupsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    page?: string | string[];
+    pageSize?: string | string[];
+    q?: string | string[];
+  }>;
+}) {
+  const params = await searchParams;
   const currentUser = await getCurrentUser();
 
   if (!currentUser) {
     redirect("/login?from=/groups");
   }
 
-  const groups = await getUserGroups(currentUser.id);
+  const q = getStringParam(params.q);
+  const initialGroupsPage = await getUserGroupsPage(currentUser.id, {
+    page: getPositiveIntegerParam(params.page, 1),
+    pageSize: getPositiveIntegerParam(params.pageSize, 20),
+    search: q,
+  });
+  const groupsPage =
+    initialGroupsPage.page > initialGroupsPage.totalPages && initialGroupsPage.total > 0
+      ? await getUserGroupsPage(currentUser.id, {
+          page: initialGroupsPage.totalPages,
+          pageSize: initialGroupsPage.pageSize,
+          search: q,
+        })
+      : initialGroupsPage;
+  const groups = groupsPage.groups;
+  const currentPage = Math.min(groupsPage.page, groupsPage.totalPages);
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8 px-5 py-10 sm:px-6 lg:px-8">
@@ -39,6 +63,31 @@ export default async function GroupsPage() {
             New Group
           </Link>
         </div>
+
+        <form action="/groups" className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row">
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search your groups"
+            className="h-11 min-w-0 flex-1 rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-[#0B6B8A] focus:ring-4 focus:ring-[#D5E8EF]"
+          />
+          <input type="hidden" name="pageSize" value={groupsPage.pageSize} />
+          <button
+            type="submit"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Search
+          </button>
+          {q ? (
+            <Link
+              href="/groups"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
+            >
+              Clear
+            </Link>
+          ) : null}
+        </form>
 
         {groups.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
@@ -109,6 +158,14 @@ export default async function GroupsPage() {
             </p>
           </div>
         )}
+
+        <GroupsPagination
+          page={currentPage}
+          pageSize={groupsPage.pageSize}
+          total={groupsPage.total}
+          totalPages={groupsPage.totalPages}
+          q={q}
+        />
       </section>
     </div>
   );
@@ -121,4 +178,112 @@ function StatItem({ label, value }: { label: string; value: string }) {
       <dd className="mt-1 text-lg font-bold text-slate-950">{value}</dd>
     </div>
   );
+}
+
+function GroupsPagination({
+  page,
+  pageSize,
+  total,
+  totalPages,
+  q,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  q?: string;
+}) {
+  const hasPrevious = page > 1;
+  const hasNext = page < totalPages;
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(total, page * pageSize);
+
+  return (
+    <nav
+      aria-label="Groups pagination"
+      className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm font-medium text-slate-600">
+        Page {page} of {totalPages}
+        {total > 0 ? `, showing ${startItem}-${endItem} of ${total} groups` : ""}
+      </p>
+      <div className="flex gap-2">
+        <PaginationLink
+          href={getGroupsPageHref({ page: page - 1, pageSize, q })}
+          disabled={!hasPrevious}
+        >
+          Previous
+        </PaginationLink>
+        <PaginationLink
+          href={getGroupsPageHref({ page: page + 1, pageSize, q })}
+          disabled={!hasNext}
+        >
+          Next
+        </PaginationLink>
+      </div>
+    </nav>
+  );
+}
+
+function PaginationLink({
+  children,
+  disabled,
+  href,
+}: {
+  children: React.ReactNode;
+  disabled: boolean;
+  href: string;
+}) {
+  if (disabled) {
+    return (
+      <span className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-400">
+        {children}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function getGroupsPageHref({
+  page,
+  pageSize,
+  q,
+}: {
+  page: number;
+  pageSize: number;
+  q?: string;
+}) {
+  const params = new URLSearchParams();
+
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+
+  if (q) {
+    params.set("q", q);
+  }
+
+  return `/groups?${params.toString()}`;
+}
+
+function getPositiveIntegerParam(
+  value: string | string[] | undefined,
+  fallback: number,
+) {
+  const parsed = Number(typeof value === "string" ? value : undefined);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getStringParam(value: string | string[] | undefined) {
+  const stringValue = typeof value === "string" ? value.trim() : "";
+
+  return stringValue ? stringValue.slice(0, 120) : undefined;
 }
