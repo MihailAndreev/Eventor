@@ -5,6 +5,7 @@ import {
   eventComments,
   eventParticipants,
   events,
+  groupInvites,
   groupMembers,
   groups,
   users,
@@ -20,9 +21,15 @@ export async function resetAndSeedTestDb() {
   await truncateApplicationTables();
 
   const passwordHash = await hashPassword("Password123!");
-  const [manager, member, outside] = await db
+  const [admin, manager, member, outside] = await db
     .insert(users)
     .values([
+      {
+        email: "admin.integration@example.com",
+        name: "Integration Admin",
+        passwordHash,
+        role: "admin",
+      },
       {
         email: "manager.integration@example.com",
         name: "Integration Manager",
@@ -137,8 +144,16 @@ export async function resetAndSeedTestDb() {
     text: "Seeded integration comment",
   });
 
+  await db.insert(groupInvites).values({
+    groupId: primaryGroup.id,
+    createdByUserId: manager.id,
+    inviteToken: "seeded-integration-invite",
+    status: "pending",
+    isActive: true,
+  });
+
   return {
-    users: { manager, member, outside },
+    users: { admin, manager, member, outside },
     groups: { primary: primaryGroup, outside: outsideGroup },
     events: { active: activeEvent, full: fullEvent, canceled: canceledEvent, past: pastEvent, outside: outsideEvent },
     password: "Password123!",

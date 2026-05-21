@@ -23,6 +23,8 @@ export default async function setup() {
     join: await import("@/app/api/events/[id]/join/route"),
     leave: await import("@/app/api/events/[id]/leave/route"),
     slots: await import("@/app/api/events/[id]/slots/route"),
+    session: await import("@/lib/auth/jwt"),
+    users: await import("@/services/users"),
   };
 
   server = createServer(async (incoming, outgoing) => {
@@ -34,7 +36,9 @@ export default async function setup() {
       const eventActionMatch = /^\/api\/events\/([^/]+)\/(join|leave|slots)$/.exec(url.pathname);
       let apiResponse: Response;
 
-      if (method === "POST" && url.pathname === "/api/auth/login") {
+      if (method === "GET" && url.pathname === "/admin") {
+        apiResponse = await getAdminPageHarnessResponse(request, routes);
+      } else if (method === "POST" && url.pathname === "/api/auth/login") {
         apiResponse = await routes.login.POST(request);
       } else if (method === "GET" && url.pathname === "/api/events") {
         apiResponse = await routes.events.GET(request);
@@ -78,6 +82,59 @@ export default async function setup() {
       server?.close((error) => (error ? reject(error) : resolve()));
     });
   };
+}
+
+async function getAdminPageHarnessResponse(
+  request: Request,
+  routes: {
+    session: typeof import("@/lib/auth/jwt");
+    users: typeof import("@/services/users");
+  },
+) {
+  const token = getCookieValue(request.headers.get("cookie"), "eventor_session");
+
+  if (!token) {
+    return new Response(null, {
+      status: 307,
+      headers: { location: "/login?from=/admin" },
+    });
+  }
+
+  const session = await routes.session.verifySessionToken(token);
+  const user = session ? await routes.users.getUserById(session.userId) : null;
+
+  if (!user) {
+    return new Response(null, {
+      status: 307,
+      headers: { location: "/login?from=/admin" },
+    });
+  }
+
+  if (user.role !== "admin") {
+    return new Response("<h1>Access denied</h1><p>Admin access is required.</p>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+  }
+
+  return new Response("<h1>Overview</h1><a>Users</a><a>Groups</a>", {
+    status: 200,
+    headers: { "content-type": "text/html" },
+  });
+}
+
+function getCookieValue(header: string | null, name: string) {
+  const cookies = header?.split(";") ?? [];
+
+  for (const cookie of cookies) {
+    const [cookieName, ...valueParts] = cookie.trim().split("=");
+
+    if (cookieName === name) {
+      return valueParts.join("=");
+    }
+  }
+
+  return undefined;
 }
 
 async function toFetchRequest(incoming: IncomingMessage) {
