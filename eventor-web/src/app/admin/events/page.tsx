@@ -73,6 +73,7 @@ export default async function AdminEventsPage({
               <th className="px-4 py-3">Participants</th>
               <th className="px-4 py-3">Comments</th>
               <th className="px-4 py-3">Links</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -100,6 +101,14 @@ export default async function AdminEventsPage({
                 <td className="px-4 py-3 text-slate-700">{event.participantCount}</td>
                 <td className="px-4 py-3 text-slate-700">{event.commentCount}</td>
                 <td className="px-4 py-3 text-slate-700">{event.linkCount}</td>
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/admin/events/${event.id}/delete`}
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100"
+                  >
+                    Delete
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

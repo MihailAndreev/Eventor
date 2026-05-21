@@ -9,7 +9,6 @@ import {
   getPositiveIntegerParam,
   getStringParam,
 } from "../_components";
-import { deleteCommentAction } from "../actions";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getAdminCommentsPage } from "@/services/admin";
 
@@ -71,15 +70,12 @@ export default async function AdminCommentsPage({
                   {comment.authorName} · {comment.authorEmail} · {formatDate(comment.createdAt)}
                 </p>
               </div>
-              <form action={deleteCommentAction}>
-                <input type="hidden" name="commentId" value={comment.id} />
-                <button
-                  type="submit"
-                  className="h-9 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100"
-                >
-                  Delete
-                </button>
-              </form>
+              <Link
+                href={`/admin/comments/${comment.id}/delete`}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100"
+              >
+                Delete
+              </Link>
             </div>
             <p className="line-clamp-3 break-words text-sm leading-6 text-slate-700">
               {comment.text}

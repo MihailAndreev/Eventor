@@ -5,6 +5,7 @@ import { db } from "@/db";
 import {
   eventComments,
   eventLinks,
+  eventNotifications,
   eventParticipants,
   events,
   groupInvites,
@@ -12,6 +13,7 @@ import {
   groups,
   users,
 } from "@/db/schema";
+import { deleteImageObject } from "@/lib/storage/r2";
 
 export type AdminRole = "user" | "admin";
 
@@ -67,6 +69,14 @@ export type AdminGroupRow = {
   createdAt: Date;
 };
 
+export type AdminGroupDeleteDetails = AdminGroupRow & {
+  inviteCount: number;
+  eventParticipantCount: number;
+  eventCommentCount: number;
+  eventLinkCount: number;
+  notificationCount: number;
+};
+
 export type AdminEventRow = {
   id: number;
   title: string;
@@ -90,6 +100,10 @@ export type AdminCommentRow = {
   authorEmail: string;
   text: string;
   createdAt: Date;
+};
+
+export type AdminEventDeleteDetails = AdminEventRow & {
+  coverImageUrl: string | null;
 };
 
 export async function isUserAdmin(userId: number) {
@@ -201,6 +215,56 @@ export async function getAdminGroupsPage(
   return getPagedResult(rows, page, pageSize, total);
 }
 
+export async function getAdminGroupDeleteDetails(
+  actingUserId: number,
+  groupId: number,
+): Promise<AdminGroupDeleteDetails | null> {
+  await requireAdminUser(actingUserId);
+
+  const [group] = await db
+    .select({
+      id: groups.id,
+      title: groups.title,
+      createdAt: groups.createdAt,
+      memberCount: sql<number>`count(distinct ${groupMembers.userId})::int`,
+      managerCount: sql<number>`count(distinct ${groupMembers.userId}) filter (where ${groupMembers.isManager} = true)::int`,
+      eventCount: sql<number>`count(distinct ${events.id})::int`,
+    })
+    .from(groups)
+    .leftJoin(groupMembers, eq(groupMembers.groupId, groups.id))
+    .leftJoin(events, eq(events.groupId, groups.id))
+    .where(eq(groups.id, groupId))
+    .groupBy(groups.id)
+    .limit(1);
+
+  if (!group) {
+    return null;
+  }
+
+  const [
+    inviteCount,
+    participantCount,
+    commentCount,
+    linkCount,
+    notificationCount,
+  ] = await Promise.all([
+    countRows(groupInvites, eq(groupInvites.groupId, groupId)),
+    countEventChildrenForGroup(eventParticipants, groupId),
+    countEventChildrenForGroup(eventComments, groupId),
+    countEventChildrenForGroup(eventLinks, groupId),
+    countRows(eventNotifications, eq(eventNotifications.groupId, groupId)),
+  ]);
+
+  return {
+    ...group,
+    inviteCount,
+    eventParticipantCount: participantCount,
+    eventCommentCount: commentCount,
+    eventLinkCount: linkCount,
+    notificationCount,
+  };
+}
+
 export async function getAdminEventsPage(
   actingUserId: number,
   input: AdminEventsPageInput = {},
@@ -246,6 +310,38 @@ export async function getAdminEventsPage(
     .offset(offset);
 
   return getPagedResult(rows, page, pageSize, totalRow?.total ?? 0);
+}
+
+export async function getAdminEventDeleteDetails(
+  actingUserId: number,
+  eventId: number,
+): Promise<AdminEventDeleteDetails | null> {
+  await requireAdminUser(actingUserId);
+
+  const [event] = await db
+    .select({
+      id: events.id,
+      title: events.title,
+      groupId: groups.id,
+      groupTitle: groups.title,
+      eventDate: events.eventDate,
+      eventTime: events.eventTime,
+      canceled: events.canceled,
+      coverImageUrl: events.coverImageUrl,
+      participantCount: sql<number>`count(distinct ${eventParticipants.id}) filter (where ${eventParticipants.status} = 'going')::int`,
+      commentCount: sql<number>`count(distinct ${eventComments.id})::int`,
+      linkCount: sql<number>`count(distinct ${eventLinks.id})::int`,
+    })
+    .from(events)
+    .innerJoin(groups, eq(events.groupId, groups.id))
+    .leftJoin(eventParticipants, eq(eventParticipants.eventId, events.id))
+    .leftJoin(eventComments, eq(eventComments.eventId, events.id))
+    .leftJoin(eventLinks, eq(eventLinks.eventId, events.id))
+    .where(eq(events.id, eventId))
+    .groupBy(events.id, groups.id)
+    .limit(1);
+
+  return event ?? null;
 }
 
 export async function getAdminCommentsPage(
@@ -296,6 +392,34 @@ export async function getAdminCommentsPage(
     .offset(offset);
 
   return getPagedResult(rows, page, pageSize, totalRow?.total ?? 0);
+}
+
+export async function getAdminCommentDeleteDetails(
+  actingUserId: number,
+  commentId: number,
+): Promise<AdminCommentRow | null> {
+  await requireAdminUser(actingUserId);
+
+  const [comment] = await db
+    .select({
+      id: eventComments.id,
+      eventId: events.id,
+      eventTitle: events.title,
+      groupId: groups.id,
+      groupTitle: groups.title,
+      authorName: users.name,
+      authorEmail: users.email,
+      text: eventComments.text,
+      createdAt: eventComments.createdAt,
+    })
+    .from(eventComments)
+    .innerJoin(events, eq(eventComments.eventId, events.id))
+    .innerJoin(groups, eq(events.groupId, groups.id))
+    .innerJoin(users, eq(eventComments.userId, users.id))
+    .where(eq(eventComments.id, commentId))
+    .limit(1);
+
+  return comment ?? null;
 }
 
 export async function updateAdminUserRole(
@@ -360,6 +484,79 @@ export async function deleteAdminComment(
   return { ok: true, message: "Comment deleted." };
 }
 
+export async function deleteAdminGroup(
+  actingUserId: number,
+  groupId: number,
+): Promise<AdminMutationResult> {
+  await requireAdminUser(actingUserId);
+
+  const [group] = await db
+    .select({
+      id: groups.id,
+      coverImageKey: groups.coverImageKey,
+    })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+
+  if (!group) {
+    return { ok: false, message: "Group not found." };
+  }
+
+  const eventCoverRows = await db
+    .select({ coverImageKey: events.coverImageKey })
+    .from(events)
+    .where(eq(events.groupId, groupId));
+  const imageKeys = [
+    group.coverImageKey,
+    ...eventCoverRows.map((event) => event.coverImageKey),
+  ].filter((key): key is string => Boolean(key));
+
+  await db.delete(groups).where(eq(groups.id, groupId));
+  const cleanup = await deleteImageObjectsSafely(imageKeys);
+
+  return cleanup.ok
+    ? { ok: true, message: "Group deleted." }
+    : {
+        ok: true,
+        message:
+          "Group deleted. Some cover image objects could not be cleaned up automatically.",
+      };
+}
+
+export async function deleteAdminEvent(
+  actingUserId: number,
+  eventId: number,
+): Promise<AdminMutationResult> {
+  await requireAdminUser(actingUserId);
+
+  const [event] = await db
+    .select({
+      id: events.id,
+      coverImageKey: events.coverImageKey,
+    })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  if (!event) {
+    return { ok: false, message: "Event not found." };
+  }
+
+  await db.delete(events).where(eq(events.id, eventId));
+  const cleanup = await deleteImageObjectsSafely(
+    event.coverImageKey ? [event.coverImageKey] : [],
+  );
+
+  return cleanup.ok
+    ? { ok: true, message: "Event deleted." }
+    : {
+        ok: true,
+        message:
+          "Event deleted. The cover image object could not be cleaned up automatically.",
+      };
+}
+
 async function requireAdminUser(userId: number) {
   if (!(await isUserAdmin(userId))) {
     throw new Error("Admin access required.");
@@ -371,7 +568,14 @@ async function getAdminCount() {
 }
 
 async function countRows(
-  table: typeof users | typeof groups | typeof events | typeof eventComments | typeof eventLinks | typeof groupInvites,
+  table:
+    | typeof users
+    | typeof groups
+    | typeof events
+    | typeof eventComments
+    | typeof eventLinks
+    | typeof groupInvites
+    | typeof eventNotifications,
   filter?: ReturnType<typeof and>,
 ) {
   const [row] = await db
@@ -380,6 +584,34 @@ async function countRows(
     .where(filter);
 
   return row?.count ?? 0;
+}
+
+async function countEventChildrenForGroup(
+  table: typeof eventParticipants | typeof eventComments | typeof eventLinks,
+  groupId: number,
+) {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(table)
+    .innerJoin(events, eq(table.eventId, events.id))
+    .where(eq(events.groupId, groupId));
+
+  return row?.count ?? 0;
+}
+
+async function deleteImageObjectsSafely(keys: string[]) {
+  let failed = false;
+
+  for (const key of keys) {
+    try {
+      await deleteImageObject(key);
+    } catch (error) {
+      failed = true;
+      console.error("Failed to delete admin-managed cover image from R2", error);
+    }
+  }
+
+  return { ok: !failed };
 }
 
 function getPagination(input: AdminPageInput) {

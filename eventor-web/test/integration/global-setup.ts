@@ -25,6 +25,7 @@ export default async function setup() {
     slots: await import("@/app/api/events/[id]/slots/route"),
     session: await import("@/lib/auth/jwt"),
     users: await import("@/services/users"),
+    admin: await import("@/services/admin"),
   };
 
   server = createServer(async (incoming, outgoing) => {
@@ -34,9 +35,18 @@ export default async function setup() {
       const method = request.method.toUpperCase();
       const eventMatch = /^\/api\/events\/([^/]+)$/.exec(url.pathname);
       const eventActionMatch = /^\/api\/events\/([^/]+)\/(join|leave|slots)$/.exec(url.pathname);
+      const adminDeleteMatch =
+        /^\/admin\/(comments|groups|events)\/([^/]+)\/delete$/.exec(url.pathname);
       let apiResponse: Response;
 
-      if (method === "GET" && url.pathname === "/admin") {
+      if (method === "GET" && adminDeleteMatch) {
+        apiResponse = await getAdminDeletePageHarnessResponse(
+          request,
+          routes,
+          adminDeleteMatch[1],
+          adminDeleteMatch[2],
+        );
+      } else if (method === "GET" && url.pathname === "/admin") {
         apiResponse = await getAdminPageHarnessResponse(request, routes);
       } else if (method === "POST" && url.pathname === "/api/auth/login") {
         apiResponse = await routes.login.POST(request);
@@ -89,6 +99,7 @@ async function getAdminPageHarnessResponse(
   routes: {
     session: typeof import("@/lib/auth/jwt");
     users: typeof import("@/services/users");
+    admin: typeof import("@/services/admin");
   },
 ) {
   const token = getCookieValue(request.headers.get("cookie"), "eventor_session");
@@ -121,6 +132,88 @@ async function getAdminPageHarnessResponse(
     status: 200,
     headers: { "content-type": "text/html" },
   });
+}
+
+async function getAdminDeletePageHarnessResponse(
+  request: Request,
+  routes: {
+    session: typeof import("@/lib/auth/jwt");
+    users: typeof import("@/services/users");
+    admin: typeof import("@/services/admin");
+  },
+  section: string,
+  id: string,
+) {
+  const user = await getUserFromCookie(request, routes);
+
+  if (!user) {
+    return new Response(null, {
+      status: 307,
+      headers: { location: `/login?from=/admin/${section}/${id}/delete` },
+    });
+  }
+
+  if (user.role !== "admin") {
+    return new Response("<h1>Access denied</h1><p>Admin access is required.</p>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+  }
+
+  const numericId = Number(id);
+
+  if (!Number.isInteger(numericId)) {
+    return new Response("Not found.", { status: 404 });
+  }
+
+  if (section === "comments") {
+    const details = await routes.admin.getAdminCommentDeleteDetails(user.id, numericId);
+
+    return details
+      ? new Response(`<h1>Delete Comment</h1><p>${details.eventTitle}</p>`, {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        })
+      : new Response("Not found.", { status: 404 });
+  }
+
+  if (section === "groups") {
+    const details = await routes.admin.getAdminGroupDeleteDetails(user.id, numericId);
+
+    return details
+      ? new Response(`<h1>Delete Group</h1><p>${details.title}</p>`, {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        })
+      : new Response("Not found.", { status: 404 });
+  }
+
+  const details = await routes.admin.getAdminEventDeleteDetails(user.id, numericId);
+
+  return details
+    ? new Response(`<h1>Delete Event</h1><p>${details.title}</p>`, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      })
+    : new Response("Not found.", { status: 404 });
+}
+
+async function getUserFromCookie(
+  request: Request,
+  routes: {
+    session: typeof import("@/lib/auth/jwt");
+    users: typeof import("@/services/users");
+  },
+) {
+  const token = getCookieValue(request.headers.get("cookie"), "eventor_session");
+
+  if (!token) {
+    return null;
+  }
+
+  const session = await routes.session.verifySessionToken(token);
+
+  return session ? routes.users.getUserById(session.userId) : null;
 }
 
 function getCookieValue(header: string | null, name: string) {
