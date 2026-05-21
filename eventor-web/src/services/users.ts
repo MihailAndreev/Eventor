@@ -1,9 +1,13 @@
 import "server-only";
 
-import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import {
+  validateLoginInput,
+  validateRegistrationInput,
+} from "@/lib/validation/auth";
 
 export type AuthUser = {
   id: number;
@@ -16,44 +20,29 @@ export type AuthResult =
   | { ok: true; user: AuthUser }
   | { ok: false; message: string };
 
-const PASSWORD_MIN_LENGTH = 8;
-
 export async function registerUser(input: {
   name: string;
   email: string;
   password: string;
 }): Promise<AuthResult> {
-  const name = input.name.trim();
-  const email = normalizeEmail(input.email);
-  const password = input.password;
+  const validation = validateRegistrationInput(input);
 
-  if (name.length < 2) {
-    return { ok: false, message: "Enter your full name." };
+  if (!validation.ok) {
+    return validation;
   }
 
-  if (!isValidEmail(email)) {
-    return { ok: false, message: "Enter a valid email address." };
-  }
-
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    return {
-      ok: false,
-      message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`,
-    };
-  }
-
-  const existingUser = await getUserByEmail(email);
+  const existingUser = await getUserByEmail(validation.email);
 
   if (existingUser) {
     return { ok: false, message: "An account with this email already exists." };
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await hashPassword(validation.password);
   const [createdUser] = await db
     .insert(users)
     .values({
-      email,
-      name,
+      email: validation.email,
+      name: validation.name,
       passwordHash,
     })
     .returning({
@@ -70,19 +59,22 @@ export async function loginUser(input: {
   email: string;
   password: string;
 }): Promise<AuthResult> {
-  const email = normalizeEmail(input.email);
+  const validation = validateLoginInput(input);
 
-  if (!isValidEmail(email) || input.password.length === 0) {
-    return { ok: false, message: "Invalid email or password." };
+  if (!validation.ok) {
+    return validation;
   }
 
-  const user = await getUserWithPasswordByEmail(email);
+  const user = await getUserWithPasswordByEmail(validation.email);
 
   if (!user) {
     return { ok: false, message: "Invalid email or password." };
   }
 
-  const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
+  const passwordMatches = await verifyPassword(
+    validation.password,
+    user.passwordHash,
+  );
 
   if (!passwordMatches) {
     return { ok: false, message: "Invalid email or password." };
@@ -138,12 +130,4 @@ async function getUserWithPasswordByEmail(email: string) {
     .limit(1);
 
   return user ?? null;
-}
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
