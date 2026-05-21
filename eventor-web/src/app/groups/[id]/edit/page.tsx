@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import {
+  removeGroupCoverImageAction,
+  updateGroupCoverImageAction,
+} from "@/app/groups/actions";
 import { GroupForm } from "@/components/groups/group-form";
+import { CoverImageManager } from "@/components/media/cover-image-manager";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUserGroupManagementAccess } from "@/services/groups";
 
@@ -58,6 +63,11 @@ export default async function EditGroupPage({
           initialDescription={access.group.description}
         />
       </section>
+      <CoverImageManager
+        currentUrl={access.group.coverImageUrl}
+        uploadAction={updateGroupCoverImageAction.bind(null, groupId)}
+        removeAction={removeGroupCoverImageAction.bind(null, groupId)}
+      />
     </div>
   );
 }

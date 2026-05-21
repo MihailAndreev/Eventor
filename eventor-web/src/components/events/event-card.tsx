@@ -1,6 +1,15 @@
 import Link from "next/link";
+import {
+  removeEventCoverImageAction,
+  updateEventCoverImageAction,
+} from "@/app/events/[id]/actions";
 import { EventActions } from "@/components/events/event-actions";
 import { EventComments } from "@/components/events/event-comments";
+import { EventLinks } from "@/components/events/event-links";
+import {
+  CoverImage,
+  CoverImageManager,
+} from "@/components/media/cover-image-manager";
 import {
   DashboardEvent,
   getCapacityLabel,
@@ -30,6 +39,13 @@ export function EventCard({ event, muted = false }: EventCardProps) {
       }`}
     >
       <div className="grid gap-4">
+        {event.coverImageUrl ? (
+          <CoverImage
+            src={event.coverImageUrl}
+            alt={`${event.title} cover`}
+            size="card"
+          />
+        ) : null}
         <EventHeader event={event} variant="card" />
         <EventMetaRow event={event} />
 
@@ -85,6 +101,22 @@ export function EventDetails({
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex flex-col gap-1">
               <h2 className="text-lg font-semibold text-slate-950">
+                Event Links
+              </h2>
+              <p className="text-sm text-slate-600">
+                Useful places connected to this event.
+              </p>
+            </div>
+            <EventLinks
+              eventId={event.id}
+              links={event.links}
+              canManage={event.currentUserCanManageEvent}
+            />
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex flex-col gap-1">
+              <h2 className="text-lg font-semibold text-slate-950">
                 Participants
               </h2>
               <p className="text-sm text-slate-600">
@@ -113,6 +145,13 @@ export function EventDetails({
         </div>
 
         <aside className="grid gap-4 lg:sticky lg:top-6">
+          {event.currentUserCanManageEvent ? (
+            <CoverImageManager
+              currentUrl={event.coverImageUrl}
+              uploadAction={updateEventCoverImageAction.bind(null, event.id)}
+              removeAction={removeEventCoverImageAction.bind(null, event.id)}
+            />
+          ) : null}
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex flex-col gap-2">
               <h2 className="text-lg font-semibold text-slate-950">
@@ -153,6 +192,15 @@ export function EventHeader({
           : "grid gap-3"
       }
     >
+      {isDetail && event.coverImageUrl ? (
+        <div className="mb-5">
+          <CoverImage
+            src={event.coverImageUrl}
+            alt={`${event.title} cover`}
+            size="hero"
+          />
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[#004F6E]">

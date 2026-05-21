@@ -60,6 +60,8 @@ export const groups = pgTable(
     id: serial("id").primaryKey(),
     title: varchar("title", { length: 180 }).notNull(),
     description: text("description"),
+    coverImageUrl: text("cover_image_url"),
+    coverImageKey: text("cover_image_key"),
     createdByUserId: integer("created_by_user_id")
       .notNull()
       .references(() => users.id),
@@ -127,6 +129,8 @@ export const events = pgTable(
       .references(() => groups.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 180 }).notNull(),
     description: text("description"),
+    coverImageUrl: text("cover_image_url"),
+    coverImageKey: text("cover_image_key"),
     eventDate: date("event_date").notNull(),
     eventTime: time("event_time").notNull(),
     location: text("location"),
@@ -142,6 +146,27 @@ export const events = pgTable(
     index("events_group_id_event_date_event_time_idx").on(table.groupId, table.eventDate, table.eventTime),
     index("events_created_by_user_id_idx").on(table.createdByUserId),
     index("events_canceled_idx").on(table.canceled),
+  ],
+);
+
+export const eventLinks = pgTable(
+  "event_links",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 180 }).notNull(),
+    url: text("url").notNull(),
+    createdByUserId: integer("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("event_links_event_id_idx").on(table.eventId),
+    index("event_links_created_by_user_id_idx").on(table.createdByUserId),
   ],
 );
 

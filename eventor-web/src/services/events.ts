@@ -4,12 +4,20 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   eventComments,
+  eventLinks,
   eventParticipants,
   events,
   groupMembers,
   groups,
   users,
 } from "@/db/schema";
+import {
+  createCoverImageKey,
+  deleteImageObject,
+  uploadPublicImage,
+} from "@/lib/storage/r2";
+import { validateEventLinkInput } from "@/lib/validation/links";
+import { validateCoverImageFile } from "@/lib/validation/media";
 import {
   EventManagementFormInput,
   validateCommentText,
@@ -45,6 +53,13 @@ export type EventComment = {
   authorName: string;
 };
 
+export type EventLink = {
+  id: number;
+  title: string;
+  url: string;
+  displayUrl: string;
+};
+
 export type DashboardEvent = {
   id: number;
   groupId: number;
@@ -58,6 +73,8 @@ export type DashboardEvent = {
   location: string | null;
   capacity: number | null;
   canceled: boolean;
+  createdByUserId: number;
+  coverImageUrl: string | null;
   timeState: EventTimeState;
   capacityState: EventCapacityState;
   isActive: boolean;
@@ -66,7 +83,9 @@ export type DashboardEvent = {
   commentsCount: number;
   participants: DashboardEventParticipant[];
   comments: EventComment[];
+  links: EventLink[];
   currentUserCanManageGroup: boolean;
+  currentUserCanManageEvent: boolean;
   currentUserParticipation: {
     joined: boolean;
     extraSlots: number;
@@ -84,6 +103,8 @@ type EventRow = {
   location: string | null;
   capacity: number | null;
   canceled: boolean;
+  createdByUserId: number;
+  coverImageUrl: string | null;
 };
 
 export type EventAccessResult =
@@ -105,6 +126,7 @@ export type EventManagementDetails = {
   location: string | null;
   capacity: number | null;
   canceled: boolean;
+  coverImageUrl: string | null;
 };
 
 export type EventManagementAccessResult =
@@ -240,6 +262,8 @@ export async function getUserDashboardEventsPage(
       location: events.location,
       capacity: events.capacity,
       canceled: events.canceled,
+      createdByUserId: events.createdByUserId,
+      coverImageUrl: events.coverImageUrl,
     })
     .from(events)
     .innerJoin(groups, eq(events.groupId, groups.id))
@@ -331,7 +355,12 @@ export async function getUserEventAccess(
 
   return {
     ok: true,
-    event: { ...event, currentUserCanManageGroup: membership.isManager },
+    event: {
+      ...event,
+      currentUserCanManageGroup: membership.isManager,
+      currentUserCanManageEvent:
+        membership.isManager || event.createdByUserId === userId,
+    },
   };
 }
 
@@ -490,6 +519,7 @@ export async function getEventManagementAccess(
       location: events.location,
       capacity: events.capacity,
       canceled: events.canceled,
+      coverImageUrl: events.coverImageUrl,
     })
     .from(events)
     .innerJoin(groups, eq(events.groupId, groups.id))
@@ -614,6 +644,160 @@ export async function deleteManagedEvent(
     .where(and(eq(events.id, eventId), eq(events.groupId, groupId)));
 
   return { ok: true, message: "Event deleted." };
+}
+
+export async function updateEventCoverImage(
+  userId: number,
+  eventId: number,
+  file: File,
+): Promise<EventMutationResult> {
+  const access = await getEventMutationAccess(userId, eventId);
+
+  if (!access.ok) {
+    return getEventMutationAccessError(access.reason);
+  }
+
+  const validation = validateCoverImageFile(file);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const key = createCoverImageKey({
+    target: "events",
+    id: eventId,
+    extension: validation.extension,
+  });
+  const upload = await uploadPublicImage({
+    key,
+    body: new Uint8Array(await file.arrayBuffer()),
+    contentType: validation.mimeType,
+  });
+  const previousKey = access.event.coverImageKey;
+
+  await db
+    .update(events)
+    .set({
+      coverImageUrl: upload.url,
+      coverImageKey: upload.key,
+      updatedAt: new Date(),
+    })
+    .where(eq(events.id, eventId));
+
+  await deleteImageObjectSafely(previousKey);
+
+  return { ok: true, message: "Event cover image updated." };
+}
+
+export async function removeEventCoverImage(
+  userId: number,
+  eventId: number,
+): Promise<EventMutationResult> {
+  const access = await getEventMutationAccess(userId, eventId);
+
+  if (!access.ok) {
+    return getEventMutationAccessError(access.reason);
+  }
+
+  await db
+    .update(events)
+    .set({
+      coverImageUrl: null,
+      coverImageKey: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(events.id, eventId));
+
+  await deleteImageObjectSafely(access.event.coverImageKey);
+
+  return { ok: true, message: "Event cover image removed." };
+}
+
+export async function createEventLink(
+  userId: number,
+  eventId: number,
+  input: { title: string; url: string },
+): Promise<EventMutationResult> {
+  const access = await getEventMutationAccess(userId, eventId);
+
+  if (!access.ok) {
+    return getEventMutationAccessError(access.reason);
+  }
+
+  const validation = validateEventLinkInput(input);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  await db.insert(eventLinks).values({
+    eventId,
+    title: validation.title,
+    url: validation.url,
+    createdByUserId: userId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  return { ok: true, message: "Event link added." };
+}
+
+export async function updateEventLink(
+  userId: number,
+  eventId: number,
+  linkId: number,
+  input: { title: string; url: string },
+): Promise<EventMutationResult> {
+  const access = await getEventMutationAccess(userId, eventId);
+
+  if (!access.ok) {
+    return getEventMutationAccessError(access.reason);
+  }
+
+  const validation = validateEventLinkInput(input);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const [link] = await db
+    .select({ id: eventLinks.id })
+    .from(eventLinks)
+    .where(and(eq(eventLinks.id, linkId), eq(eventLinks.eventId, eventId)))
+    .limit(1);
+
+  if (!link) {
+    return { ok: false, message: "Event link not found." };
+  }
+
+  await db
+    .update(eventLinks)
+    .set({
+      title: validation.title,
+      url: validation.url,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(eventLinks.id, linkId), eq(eventLinks.eventId, eventId)));
+
+  return { ok: true, message: "Event link updated." };
+}
+
+export async function deleteEventLink(
+  userId: number,
+  eventId: number,
+  linkId: number,
+): Promise<EventMutationResult> {
+  const access = await getEventMutationAccess(userId, eventId);
+
+  if (!access.ok) {
+    return getEventMutationAccessError(access.reason);
+  }
+
+  await db
+    .delete(eventLinks)
+    .where(and(eq(eventLinks.id, linkId), eq(eventLinks.eventId, eventId)));
+
+  return { ok: true, message: "Event link deleted." };
 }
 
 export async function addEventComment(
@@ -768,6 +952,8 @@ async function getUserEventRows(userId: number, eventId?: number): Promise<Event
       location: events.location,
       capacity: events.capacity,
       canceled: events.canceled,
+      createdByUserId: events.createdByUserId,
+      coverImageUrl: events.coverImageUrl,
     })
     .from(events)
     .innerJoin(groups, eq(events.groupId, groups.id))
@@ -787,6 +973,8 @@ async function getEventRowsById(eventId: number): Promise<EventRow[]> {
       location: events.location,
       capacity: events.capacity,
       canceled: events.canceled,
+      createdByUserId: events.createdByUserId,
+      coverImageUrl: events.coverImageUrl,
     })
     .from(events)
     .innerJoin(groups, eq(events.groupId, groups.id))
@@ -846,6 +1034,17 @@ async function hydrateEvents(
     .where(inArray(eventComments.eventId, eventIds))
     .orderBy(desc(eventComments.createdAt));
 
+  const linkRows = await db
+    .select({
+      id: eventLinks.id,
+      eventId: eventLinks.eventId,
+      title: eventLinks.title,
+      url: eventLinks.url,
+    })
+    .from(eventLinks)
+    .where(inArray(eventLinks.eventId, eventIds))
+    .orderBy(asc(eventLinks.createdAt), asc(eventLinks.id));
+
   const participantsByEvent = new Map<number, DashboardEventParticipant[]>();
   const attendeeCountByEvent = new Map<number, number>();
 
@@ -872,6 +1071,7 @@ async function hydrateEvents(
     commentRows.map((comment) => [comment.eventId, comment.commentsCount]),
   );
   const commentsByEvent = new Map<number, EventComment[]>();
+  const linksByEvent = new Map<number, EventLink[]>();
 
   for (const comment of commentDetailRows) {
     const comments = commentsByEvent.get(comment.eventId) ?? [];
@@ -884,6 +1084,17 @@ async function hydrateEvents(
       authorName: comment.authorName,
     });
     commentsByEvent.set(comment.eventId, comments);
+  }
+
+  for (const link of linkRows) {
+    const links = linksByEvent.get(link.eventId) ?? [];
+    links.push({
+      id: link.id,
+      title: link.title,
+      url: link.url,
+      displayUrl: getDisplayUrl(link.url),
+    });
+    linksByEvent.set(link.eventId, links);
   }
 
   const now = new Date();
@@ -910,7 +1121,9 @@ async function hydrateEvents(
       commentsCount: commentsCountByEvent.get(event.id) ?? 0,
       participants: participantsByEvent.get(event.id) ?? [],
       comments: commentsByEvent.get(event.id) ?? [],
+      links: linksByEvent.get(event.id) ?? [],
       currentUserCanManageGroup: false,
+      currentUserCanManageEvent: event.createdByUserId === currentUserId,
       currentUserParticipation: {
         joined: currentUserParticipant !== undefined,
         extraSlots: currentUserParticipant?.extraSlots ?? 0,
@@ -986,6 +1199,77 @@ async function getGroupManagerAccess(userId: number, groupId: number) {
   }
 
   return { ok: true as const };
+}
+
+async function getEventMutationAccess(userId: number, eventId: number) {
+  const [event] = await db
+    .select({
+      id: events.id,
+      groupId: events.groupId,
+      createdByUserId: events.createdByUserId,
+      coverImageKey: events.coverImageKey,
+    })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+
+  if (!event) {
+    return { ok: false as const, reason: "not_found" as const };
+  }
+
+  const [membership] = await db
+    .select({ isManager: groupMembers.isManager })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, event.groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!membership) {
+    return { ok: false as const, reason: "not_member" as const };
+  }
+
+  if (!membership.isManager && event.createdByUserId !== userId) {
+    return { ok: false as const, reason: "not_manager" as const };
+  }
+
+  return { ok: true as const, event };
+}
+
+function getEventMutationAccessError(
+  reason: "not_found" | "not_member" | "not_manager",
+): EventMutationResult {
+  switch (reason) {
+    case "not_found":
+      return { ok: false, message: "Event not found." };
+    case "not_member":
+      return { ok: false, message: "You are not a member of this event group." };
+    case "not_manager":
+      return {
+        ok: false,
+        message: "Only event organizers and group managers can change this event.",
+      };
+  }
+}
+
+async function deleteImageObjectSafely(key: string | null | undefined) {
+  try {
+    await deleteImageObject(key);
+  } catch (error) {
+    console.error("Failed to delete old cover image from R2", error);
+  }
+}
+
+function getDisplayUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.hostname.replace(/^www\./, "");
+  } catch {
+    return value;
+  }
 }
 
 function getEventManagementMutationError(

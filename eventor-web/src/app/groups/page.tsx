@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CoverImage } from "@/components/media/cover-image-manager";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUserGroups } from "@/services/groups";
 
@@ -44,8 +45,13 @@ export default async function GroupsPage() {
             {groups.map((group) => (
               <article
                 key={group.id}
-                className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7FB3C4] hover:shadow-md"
+                className="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7FB3C4] hover:shadow-md"
               >
+                <CoverImage
+                  src={group.coverImageUrl}
+                  alt={`${group.title} cover`}
+                  size="card"
+                />
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <Link href={`/groups/${group.id}`} className="group/link">

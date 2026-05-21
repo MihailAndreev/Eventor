@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CoverImage } from "@/components/media/cover-image-manager";
 import type { GroupEventSummary } from "@/services/groups";
 
 export function GroupEventList({
@@ -30,7 +31,20 @@ export function GroupEventList({
             event.isActive ? "bg-white" : "bg-slate-50/80"
           }`}
         >
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <div
+            className={`grid gap-4 sm:items-start ${
+              event.coverImageUrl
+                ? "sm:grid-cols-[132px_minmax(0,1fr)_auto]"
+                : "sm:grid-cols-[minmax(0,1fr)_auto]"
+            }`}
+          >
+            {event.coverImageUrl ? (
+              <CoverImage
+                src={event.coverImageUrl}
+                alt={`${event.title} cover`}
+                size="thumb"
+              />
+            ) : null}
             <div className="min-w-0">
               <div className="flex flex-wrap gap-2">
                 <EventStateBadge event={event} />

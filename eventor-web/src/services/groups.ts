@@ -11,12 +11,19 @@ import {
   groups,
   users,
 } from "@/db/schema";
+import {
+  createCoverImageKey,
+  deleteImageObject,
+  uploadPublicImage,
+} from "@/lib/storage/r2";
 import { validateGroupInput } from "@/lib/validation/groups";
+import { validateCoverImageFile } from "@/lib/validation/media";
 
 export type UserGroupSummary = {
   id: number;
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
   memberCount: number;
   activeEventCount: number;
   currentUserIsManager: boolean;
@@ -40,12 +47,14 @@ export type GroupEventSummary = {
   attendeeCount: number;
   canceled: boolean;
   isActive: boolean;
+  coverImageUrl: string | null;
 };
 
 export type GroupDetails = {
   id: number;
   title: string;
   description: string | null;
+  coverImageUrl: string | null;
   currentUserIsManager: boolean;
   managers: GroupMemberSummary[];
   members: GroupMemberSummary[];
@@ -57,7 +66,13 @@ export type GroupAccessResult =
   | { ok: false; reason: "not_found" | "not_member" };
 
 export type GroupManagementAccessResult =
-  | { ok: true; group: Pick<GroupDetails, "id" | "title" | "description" | "currentUserIsManager"> }
+  | {
+      ok: true;
+      group: Pick<
+        GroupDetails,
+        "id" | "title" | "description" | "coverImageUrl" | "currentUserIsManager"
+      > & { coverImageKey: string | null };
+    }
   | { ok: false; reason: "not_found" | "not_member" | "not_manager" };
 
 export type GroupMembersManagement = Pick<
@@ -89,6 +104,7 @@ type GroupEventRow = {
   location: string | null;
   capacity: number | null;
   canceled: boolean;
+  coverImageUrl: string | null;
 };
 
 export async function getUserGroups(userId: number): Promise<UserGroupSummary[]> {
@@ -97,6 +113,7 @@ export async function getUserGroups(userId: number): Promise<UserGroupSummary[]>
       id: groups.id,
       title: groups.title,
       description: groups.description,
+      coverImageUrl: groups.coverImageUrl,
       currentUserIsManager: groupMembers.isManager,
     })
     .from(groupMembers)
@@ -148,6 +165,7 @@ export async function getUserGroupAccess(
       id: groups.id,
       title: groups.title,
       description: groups.description,
+      coverImageUrl: groups.coverImageUrl,
     })
     .from(groups)
     .where(eq(groups.id, groupId))
@@ -210,6 +228,8 @@ export async function getUserGroupManagementAccess(
       id: groups.id,
       title: groups.title,
       description: groups.description,
+      coverImageUrl: groups.coverImageUrl,
+      coverImageKey: groups.coverImageKey,
     })
     .from(groups)
     .where(eq(groups.id, groupId))
@@ -334,6 +354,73 @@ export async function updateGroup(
     .where(eq(groups.id, groupId));
 
   return { ok: true, message: "Group updated.", groupId };
+}
+
+export async function updateGroupCoverImage(
+  userId: number,
+  groupId: number,
+  file: File,
+): Promise<GroupMutationResult> {
+  const access = await getUserGroupManagementAccess(userId, groupId);
+
+  if (!access.ok) {
+    return getGroupAccessMutationError(access.reason);
+  }
+
+  const validation = validateCoverImageFile(file);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const key = createCoverImageKey({
+    target: "groups",
+    id: groupId,
+    extension: validation.extension,
+  });
+  const upload = await uploadPublicImage({
+    key,
+    body: new Uint8Array(await file.arrayBuffer()),
+    contentType: validation.mimeType,
+  });
+  const previousKey = access.group.coverImageKey;
+
+  await db
+    .update(groups)
+    .set({
+      coverImageUrl: upload.url,
+      coverImageKey: upload.key,
+      updatedAt: new Date(),
+    })
+    .where(eq(groups.id, groupId));
+
+  await deleteImageObjectSafely(previousKey);
+
+  return { ok: true, message: "Group cover image updated.", groupId };
+}
+
+export async function removeGroupCoverImage(
+  userId: number,
+  groupId: number,
+): Promise<GroupMutationResult> {
+  const access = await getUserGroupManagementAccess(userId, groupId);
+
+  if (!access.ok) {
+    return getGroupAccessMutationError(access.reason);
+  }
+
+  await db
+    .update(groups)
+    .set({
+      coverImageUrl: null,
+      coverImageKey: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(groups.id, groupId));
+
+  await deleteImageObjectSafely(access.group.coverImageKey);
+
+  return { ok: true, message: "Group cover image removed.", groupId };
 }
 
 export async function deleteGroup(
@@ -768,6 +855,7 @@ async function getGroupEventRows(groupId: number): Promise<GroupEventRow[]> {
       location: events.location,
       capacity: events.capacity,
       canceled: events.canceled,
+      coverImageUrl: events.coverImageUrl,
     })
     .from(events)
     .where(eq(events.groupId, groupId))
@@ -820,8 +908,17 @@ async function hydrateGroupEvents(
       attendeeCount: attendeeCountsByEvent.get(event.id) ?? 0,
       canceled: event.canceled,
       isActive,
+      coverImageUrl: event.coverImageUrl,
     };
   });
+}
+
+async function deleteImageObjectSafely(key: string | null | undefined) {
+  try {
+    await deleteImageObject(key);
+  } catch (error) {
+    console.error("Failed to delete old cover image from R2", error);
+  }
 }
 
 function getActiveEventFilter() {

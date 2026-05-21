@@ -10,8 +10,10 @@ import {
   deleteGroup,
   leaveGroup,
   promoteGroupMember,
+  removeGroupCoverImage,
   removeGroupMember,
   updateGroup,
+  updateGroupCoverImage,
 } from "@/services/groups";
 import type {
   GroupActionState,
@@ -62,6 +64,49 @@ export async function updateGroupAction(
 
   revalidateGroupPaths(groupId);
   redirect(`/groups/${groupId}`);
+}
+
+export async function updateGroupCoverImageAction(
+  groupId: number,
+  _previousState: GroupActionState,
+  formData: FormData,
+): Promise<GroupActionState> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/groups/${groupId}/edit`);
+  }
+
+  const file = formData.get("coverImage");
+
+  if (!(file instanceof File)) {
+    return { ok: false, message: "Choose an image before saving." };
+  }
+
+  const result = await updateGroupCoverImage(currentUser.id, groupId, file);
+
+  revalidateGroupPaths(groupId);
+
+  return result;
+}
+
+export async function removeGroupCoverImageAction(
+  groupId: number,
+  previousState: GroupActionState,
+): Promise<GroupActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/groups/${groupId}/edit`);
+  }
+
+  const result = await removeGroupCoverImage(currentUser.id, groupId);
+
+  revalidateGroupPaths(groupId);
+
+  return result;
 }
 
 export async function deleteGroupAction(

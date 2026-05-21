@@ -15,6 +15,13 @@
       "when": 1779089627416,
       "tag": "0001_seed_support",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779364804228,
+      "tag": "0002_slippery_cammi",
+      "breakpoints": true
     }
   ]
 }

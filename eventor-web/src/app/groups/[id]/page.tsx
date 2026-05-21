@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { GroupEventList } from "@/components/groups/group-event-list";
 import { GroupInvitePanel } from "@/components/groups/group-invite-panel";
+import { CoverImage } from "@/components/media/cover-image-manager";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUserGroupAccess } from "@/services/groups";
 import type { GroupMemberSummary } from "@/services/groups";
@@ -62,6 +63,15 @@ export default async function GroupPage({
       </Link>
 
       <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        {group.coverImageUrl ? (
+          <div className="mb-5">
+            <CoverImage
+              src={group.coverImageUrl}
+              alt={`${group.title} cover`}
+              size="hero"
+            />
+          </div>
+        ) : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#004F6E]">

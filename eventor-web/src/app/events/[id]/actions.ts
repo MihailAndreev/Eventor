@@ -5,11 +5,16 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import {
   addEventComment,
+  createEventLink,
   deleteEventComment,
+  deleteEventLink,
   joinEvent,
   leaveEvent,
+  removeEventCoverImage,
   updateEventComment,
+  updateEventCoverImage,
   updateEventExtraSlots,
+  updateEventLink,
 } from "@/services/events";
 import type { EventActionState } from "./types";
 
@@ -83,6 +88,107 @@ export async function addCommentAction(
     eventId,
     String(formData.get("text") ?? ""),
   );
+  revalidateEventPaths(eventId);
+
+  return result;
+}
+
+export async function updateEventCoverImageAction(
+  eventId: number,
+  _previousState: EventActionState,
+  formData: FormData,
+): Promise<EventActionState> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/events/${eventId}`);
+  }
+
+  const file = formData.get("coverImage");
+
+  if (!(file instanceof File)) {
+    return { ok: false, message: "Choose an image before saving." };
+  }
+
+  const result = await updateEventCoverImage(currentUser.id, eventId, file);
+  revalidateEventPaths(eventId);
+
+  return result;
+}
+
+export async function removeEventCoverImageAction(
+  eventId: number,
+  previousState: EventActionState,
+): Promise<EventActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/events/${eventId}`);
+  }
+
+  const result = await removeEventCoverImage(currentUser.id, eventId);
+  revalidateEventPaths(eventId);
+
+  return result;
+}
+
+export async function addEventLinkAction(
+  eventId: number,
+  _previousState: EventActionState,
+  formData: FormData,
+): Promise<EventActionState> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/events/${eventId}`);
+  }
+
+  const result = await createEventLink(currentUser.id, eventId, {
+    title: String(formData.get("title") ?? ""),
+    url: String(formData.get("url") ?? ""),
+  });
+  revalidateEventPaths(eventId);
+
+  return result;
+}
+
+export async function editEventLinkAction(
+  eventId: number,
+  linkId: number,
+  _previousState: EventActionState,
+  formData: FormData,
+): Promise<EventActionState> {
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/events/${eventId}`);
+  }
+
+  const result = await updateEventLink(currentUser.id, eventId, linkId, {
+    title: String(formData.get("title") ?? ""),
+    url: String(formData.get("url") ?? ""),
+  });
+  revalidateEventPaths(eventId);
+
+  return result;
+}
+
+export async function deleteEventLinkAction(
+  eventId: number,
+  linkId: number,
+  previousState: EventActionState,
+): Promise<EventActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/events/${eventId}`);
+  }
+
+  const result = await deleteEventLink(currentUser.id, eventId, linkId);
   revalidateEventPaths(eventId);
 
   return result;

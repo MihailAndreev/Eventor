@@ -151,6 +151,7 @@ export async function truncateApplicationTables() {
   await sql.query(`
     truncate table
       event_notifications,
+      event_links,
       event_comments,
       event_participants,
       events,
