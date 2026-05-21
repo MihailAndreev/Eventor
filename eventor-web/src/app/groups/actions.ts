@@ -6,11 +6,18 @@ import { getCurrentUser } from "@/lib/auth/session";
 import {
   createGroup,
   createGroupInvite,
+  demoteGroupMember,
   deleteGroup,
   leaveGroup,
+  promoteGroupMember,
+  removeGroupMember,
   updateGroup,
 } from "@/services/groups";
-import type { GroupActionState, GroupInviteActionState } from "./types";
+import type {
+  GroupActionState,
+  GroupInviteActionState,
+  GroupMemberActionState,
+} from "./types";
 
 export async function createGroupAction(
   _previousState: GroupActionState,
@@ -128,6 +135,78 @@ export async function leaveGroupAction(
   redirect("/groups");
 }
 
+export async function promoteGroupMemberAction(
+  groupId: number,
+  targetUserId: number,
+  previousState: GroupMemberActionState,
+): Promise<GroupMemberActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/groups/${groupId}/members`);
+  }
+
+  const result = await promoteGroupMember(
+    currentUser.id,
+    groupId,
+    targetUserId,
+  );
+
+  revalidateGroupMemberManagementPaths(groupId);
+
+  return { ...result, targetUserId };
+}
+
+export async function demoteGroupMemberAction(
+  groupId: number,
+  targetUserId: number,
+  previousState: GroupMemberActionState,
+): Promise<GroupMemberActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/groups/${groupId}/members`);
+  }
+
+  const result = await demoteGroupMember(
+    currentUser.id,
+    groupId,
+    targetUserId,
+  );
+
+  revalidateGroupMemberManagementPaths(groupId);
+
+  return { ...result, targetUserId };
+}
+
+export async function removeGroupMemberAction(
+  groupId: number,
+  targetUserId: number,
+  previousState: GroupMemberActionState,
+): Promise<GroupMemberActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/groups/${groupId}/members`);
+  }
+
+  const result = await removeGroupMember(
+    currentUser.id,
+    groupId,
+    targetUserId,
+  );
+
+  revalidateGroupMemberManagementPaths(groupId);
+
+  return { ...result, targetUserId };
+}
+
 function getGroupFormInput(formData: FormData) {
   return {
     title: String(formData.get("title") ?? ""),
@@ -139,4 +218,9 @@ function revalidateGroupPaths(groupId: number) {
   revalidatePath("/groups");
   revalidatePath(`/groups/${groupId}`);
   revalidatePath("/dashboard");
+}
+
+function revalidateGroupMemberManagementPaths(groupId: number) {
+  revalidateGroupPaths(groupId);
+  revalidatePath(`/groups/${groupId}/members`);
 }

@@ -59,6 +59,15 @@ export type GroupManagementAccessResult =
   | { ok: true; group: Pick<GroupDetails, "id" | "title" | "description" | "currentUserIsManager"> }
   | { ok: false; reason: "not_found" | "not_member" | "not_manager" };
 
+export type GroupMembersManagement = Pick<
+  GroupDetails,
+  "id" | "title" | "description" | "currentUserIsManager" | "members"
+>;
+
+export type GroupMembersManagementResult =
+  | { ok: true; group: GroupMembersManagement }
+  | { ok: false; reason: "not_found" | "not_member" | "not_manager" };
+
 export type GroupMutationResult =
   | { ok: true; message: string; groupId?: number }
   | { ok: false; message: string };
@@ -237,6 +246,27 @@ export async function getUserGroupManagementAccess(
   };
 }
 
+export async function getGroupMembersManagement(
+  userId: number,
+  groupId: number,
+): Promise<GroupMembersManagementResult> {
+  const access = await getUserGroupManagementAccess(userId, groupId);
+
+  if (!access.ok) {
+    return access;
+  }
+
+  const members = await getGroupMembers(groupId);
+
+  return {
+    ok: true,
+    group: {
+      ...access.group,
+      members,
+    },
+  };
+}
+
 export async function createGroup(
   userId: number,
   input: { title: string; description: string },
@@ -372,26 +402,7 @@ export async function leaveGroup(
     }
   }
 
-  const activeEventRows = await db
-    .select({ id: events.id })
-    .from(events)
-    .where(and(eq(events.groupId, groupId), getActiveEventFilter()));
-  const activeEventIds = activeEventRows.map((event) => event.id);
-
-  if (activeEventIds.length > 0) {
-    await db
-      .update(eventParticipants)
-      .set({
-        status: "not_going",
-        extraSlots: 0,
-      })
-      .where(
-        and(
-          eq(eventParticipants.userId, userId),
-          inArray(eventParticipants.eventId, activeEventIds),
-        ),
-      );
-  }
+  await markActiveGroupEventParticipationNotGoing(userId, groupId);
 
   await db
     .delete(groupMembers)
@@ -403,6 +414,108 @@ export async function leaveGroup(
     );
 
   return { ok: true, message: "You left the group.", groupId };
+}
+
+export async function promoteGroupMember(
+  actingUserId: number,
+  groupId: number,
+  targetUserId: number,
+): Promise<GroupMutationResult> {
+  const access = await getUserGroupManagementAccess(actingUserId, groupId);
+
+  if (!access.ok) {
+    return getGroupAccessMutationError(access.reason);
+  }
+
+  const targetMembership = await getGroupMembership(targetUserId, groupId);
+
+  if (!targetMembership) {
+    return { ok: false, message: "This member is not in the group." };
+  }
+
+  if (targetMembership.isManager) {
+    return { ok: false, message: "This member is already a manager." };
+  }
+
+  await db
+    .update(groupMembers)
+    .set({ isManager: true })
+    .where(eq(groupMembers.id, targetMembership.id));
+
+  return { ok: true, message: "Member promoted to manager.", groupId };
+}
+
+export async function demoteGroupMember(
+  actingUserId: number,
+  groupId: number,
+  targetUserId: number,
+): Promise<GroupMutationResult> {
+  const access = await getUserGroupManagementAccess(actingUserId, groupId);
+
+  if (!access.ok) {
+    return getGroupAccessMutationError(access.reason);
+  }
+
+  const targetMembership = await getGroupMembership(targetUserId, groupId);
+
+  if (!targetMembership) {
+    return { ok: false, message: "This member is not in the group." };
+  }
+
+  if (!targetMembership.isManager) {
+    return { ok: false, message: "This member is already a regular member." };
+  }
+
+  if ((await getGroupManagerCount(groupId)) <= 1) {
+    return {
+      ok: false,
+      message: "This group must always have at least one manager.",
+    };
+  }
+
+  await db
+    .update(groupMembers)
+    .set({ isManager: false })
+    .where(eq(groupMembers.id, targetMembership.id));
+
+  return { ok: true, message: "Manager demoted to member.", groupId };
+}
+
+export async function removeGroupMember(
+  actingUserId: number,
+  groupId: number,
+  targetUserId: number,
+): Promise<GroupMutationResult> {
+  const access = await getUserGroupManagementAccess(actingUserId, groupId);
+
+  if (!access.ok) {
+    return getGroupAccessMutationError(access.reason);
+  }
+
+  if (actingUserId === targetUserId) {
+    return {
+      ok: false,
+      message: "Use Leave Group to remove yourself from this group.",
+    };
+  }
+
+  const targetMembership = await getGroupMembership(targetUserId, groupId);
+
+  if (!targetMembership) {
+    return { ok: false, message: "This member is not in the group." };
+  }
+
+  if (targetMembership.isManager && (await getGroupManagerCount(groupId)) <= 1) {
+    return {
+      ok: false,
+      message: "This group must always have at least one manager.",
+    };
+  }
+
+  await markActiveGroupEventParticipationNotGoing(targetUserId, groupId);
+  await db.delete(groupMembers).where(eq(groupMembers.id, targetMembership.id));
+
+  return { ok: true, message: "Member removed from the group.", groupId };
 }
 
 export async function createGroupInvite(
@@ -589,7 +702,7 @@ async function getGroupMembers(groupId: number): Promise<GroupMemberSummary[]> {
 
 async function getGroupMembership(userId: number, groupId: number) {
   const [membership] = await db
-    .select({ id: groupMembers.id })
+    .select({ id: groupMembers.id, isManager: groupMembers.isManager })
     .from(groupMembers)
     .where(
       and(
@@ -600,6 +713,48 @@ async function getGroupMembership(userId: number, groupId: number) {
     .limit(1);
 
   return membership;
+}
+
+async function getGroupManagerCount(groupId: number) {
+  const [managerCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.isManager, true),
+      ),
+    );
+
+  return managerCount?.count ?? 0;
+}
+
+async function markActiveGroupEventParticipationNotGoing(
+  userId: number,
+  groupId: number,
+) {
+  const activeEventRows = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(and(eq(events.groupId, groupId), getActiveEventFilter()));
+  const activeEventIds = activeEventRows.map((event) => event.id);
+
+  if (activeEventIds.length === 0) {
+    return;
+  }
+
+  await db
+    .update(eventParticipants)
+    .set({
+      status: "not_going",
+      extraSlots: 0,
+    })
+    .where(
+      and(
+        eq(eventParticipants.userId, userId),
+        inArray(eventParticipants.eventId, activeEventIds),
+      ),
+    );
 }
 
 async function getGroupEventRows(groupId: number): Promise<GroupEventRow[]> {

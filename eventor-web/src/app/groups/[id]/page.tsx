@@ -99,6 +99,12 @@ export default async function GroupPage({
                   Edit
                 </Link>
                 <Link
+                  href={`/groups/${group.id}/members`}
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
+                >
+                  Manage Members
+                </Link>
+                <Link
                   href={`/groups/${group.id}/delete`}
                   className="inline-flex h-10 items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100"
                 >
