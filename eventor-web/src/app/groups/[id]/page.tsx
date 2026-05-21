@@ -73,15 +73,33 @@ export default async function GroupPage({
               {group.description ?? "No description yet."}
             </p>
           </div>
-          <span
-            className={`w-fit shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ${
-              group.currentUserIsManager
-                ? "bg-[#EAF5F8] text-[#004F6E] ring-[#B8D7E2]"
-                : "bg-slate-100 text-slate-700 ring-slate-200"
-            }`}
-          >
-            You are a {group.currentUserIsManager ? "manager" : "member"}
-          </span>
+          <div className="flex shrink-0 flex-col gap-3 sm:items-end">
+            <span
+              className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ${
+                group.currentUserIsManager
+                  ? "bg-[#EAF5F8] text-[#004F6E] ring-[#B8D7E2]"
+                  : "bg-slate-100 text-slate-700 ring-slate-200"
+              }`}
+            >
+              You are a {group.currentUserIsManager ? "manager" : "member"}
+            </span>
+            {group.currentUserIsManager ? (
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <Link
+                  href={`/groups/${group.id}/edit`}
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
+                >
+                  Edit
+                </Link>
+                <Link
+                  href={`/groups/${group.id}/delete`}
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100"
+                >
+                  Delete
+                </Link>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 

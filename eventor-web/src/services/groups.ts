@@ -53,6 +53,14 @@ export type GroupAccessResult =
   | { ok: true; group: GroupDetails }
   | { ok: false; reason: "not_found" | "not_member" };
 
+export type GroupManagementAccessResult =
+  | { ok: true; group: Pick<GroupDetails, "id" | "title" | "description" | "currentUserIsManager"> }
+  | { ok: false; reason: "not_found" | "not_member" | "not_manager" };
+
+export type GroupMutationResult =
+  | { ok: true; message: string; groupId?: number }
+  | { ok: false; message: string };
+
 type GroupEventRow = {
   id: number;
   title: string;
@@ -173,6 +181,135 @@ export async function getUserGroupAccess(
   };
 }
 
+export async function getUserGroupManagementAccess(
+  userId: number,
+  groupId: number,
+): Promise<GroupManagementAccessResult> {
+  const [group] = await db
+    .select({
+      id: groups.id,
+      title: groups.title,
+      description: groups.description,
+    })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+
+  if (!group) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const [membership] = await db
+    .select({ isManager: groupMembers.isManager })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!membership) {
+    return { ok: false, reason: "not_member" };
+  }
+
+  if (!membership.isManager) {
+    return { ok: false, reason: "not_manager" };
+  }
+
+  return {
+    ok: true,
+    group: {
+      ...group,
+      currentUserIsManager: true,
+    },
+  };
+}
+
+export async function createGroup(
+  userId: number,
+  input: { title: string; description: string },
+): Promise<GroupMutationResult> {
+  const validation = validateGroupInput(input);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const [createdGroup] = await db
+    .insert(groups)
+    .values({
+      title: validation.title,
+      description: validation.description,
+      createdByUserId: userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning({ id: groups.id });
+
+  if (!createdGroup) {
+    return { ok: false, message: "Group could not be created." };
+  }
+
+  await db.insert(groupMembers).values({
+    groupId: createdGroup.id,
+    userId,
+    isManager: true,
+    joinedAt: new Date(),
+  });
+
+  return {
+    ok: true,
+    message: "Group created.",
+    groupId: createdGroup.id,
+  };
+}
+
+export async function updateGroup(
+  userId: number,
+  groupId: number,
+  input: { title: string; description: string },
+): Promise<GroupMutationResult> {
+  const access = await getUserGroupManagementAccess(userId, groupId);
+
+  if (!access.ok) {
+    return getGroupAccessMutationError(access.reason);
+  }
+
+  const validation = validateGroupInput(input);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  await db
+    .update(groups)
+    .set({
+      title: validation.title,
+      description: validation.description,
+      updatedAt: new Date(),
+    })
+    .where(eq(groups.id, groupId));
+
+  return { ok: true, message: "Group updated.", groupId };
+}
+
+export async function deleteGroup(
+  userId: number,
+  groupId: number,
+): Promise<GroupMutationResult> {
+  const access = await getUserGroupManagementAccess(userId, groupId);
+
+  if (!access.ok) {
+    return getGroupAccessMutationError(access.reason);
+  }
+
+  await db.delete(groups).where(eq(groups.id, groupId));
+
+  return { ok: true, message: "Group deleted." };
+}
+
 async function getGroupMembers(groupId: number): Promise<GroupMemberSummary[]> {
   const members = await db
     .select({
@@ -269,4 +406,46 @@ function getEventStartAt(eventDate: string, eventTime: string) {
     timeWithoutFraction.length === 5 ? `${timeWithoutFraction}:00` : timeWithoutFraction;
 
   return new Date(`${eventDate}T${normalizedTime}`);
+}
+
+function validateGroupInput(input: {
+  title: string;
+  description: string;
+}): { ok: true; title: string; description: string | null } | { ok: false; message: string } {
+  const title = input.title.trim();
+  const description = input.description.trim();
+
+  if (title.length === 0) {
+    return { ok: false, message: "Enter a group title." };
+  }
+
+  if (title.length > 180) {
+    return { ok: false, message: "Group titles must be 180 characters or less." };
+  }
+
+  if (description.length > 1000) {
+    return {
+      ok: false,
+      message: "Group descriptions must be 1000 characters or less.",
+    };
+  }
+
+  return {
+    ok: true,
+    title,
+    description: description.length > 0 ? description : null,
+  };
+}
+
+function getGroupAccessMutationError(
+  reason: "not_found" | "not_member" | "not_manager",
+): GroupMutationResult {
+  switch (reason) {
+    case "not_found":
+      return { ok: false, message: "Group not found." };
+    case "not_member":
+      return { ok: false, message: "You are not a member of this group." };
+    case "not_manager":
+      return { ok: false, message: "Only group managers can change this group." };
+  }
 }
