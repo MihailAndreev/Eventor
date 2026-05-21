@@ -320,6 +320,91 @@ export async function deleteGroup(
   return { ok: true, message: "Group deleted." };
 }
 
+export async function leaveGroup(
+  userId: number,
+  groupId: number,
+): Promise<GroupMutationResult> {
+  const [group] = await db
+    .select({ id: groups.id })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+
+  if (!group) {
+    return { ok: false, message: "Group not found." };
+  }
+
+  const [membership] = await db
+    .select({
+      id: groupMembers.id,
+      isManager: groupMembers.isManager,
+    })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!membership) {
+    return { ok: false, message: "You are not a member of this group." };
+  }
+
+  if (membership.isManager) {
+    const [managerCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(groupMembers)
+      .where(
+        and(
+          eq(groupMembers.groupId, groupId),
+          eq(groupMembers.isManager, true),
+        ),
+      );
+
+    if ((managerCount?.count ?? 0) <= 1) {
+      return {
+        ok: false,
+        message:
+          "You are the only manager of this group. Promote another member to manager before leaving.",
+      };
+    }
+  }
+
+  const activeEventRows = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(and(eq(events.groupId, groupId), getActiveEventFilter()));
+  const activeEventIds = activeEventRows.map((event) => event.id);
+
+  if (activeEventIds.length > 0) {
+    await db
+      .update(eventParticipants)
+      .set({
+        status: "not_going",
+        extraSlots: 0,
+      })
+      .where(
+        and(
+          eq(eventParticipants.userId, userId),
+          inArray(eventParticipants.eventId, activeEventIds),
+        ),
+      );
+  }
+
+  await db
+    .delete(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    );
+
+  return { ok: true, message: "You left the group.", groupId };
+}
+
 export async function createGroupInvite(
   userId: number,
   groupId: number,

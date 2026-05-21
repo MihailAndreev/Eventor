@@ -104,8 +104,21 @@ export default async function GroupPage({
                 >
                   Delete
                 </Link>
+                <Link
+                  href={`/groups/${group.id}/leave`}
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-50"
+                >
+                  Leave Group
+                </Link>
               </div>
-            ) : null}
+            ) : (
+              <Link
+                href={`/groups/${group.id}/leave`}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-50"
+              >
+                Leave Group
+              </Link>
+            )}
           </div>
         </div>
       </header>

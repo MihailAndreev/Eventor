@@ -7,6 +7,7 @@ import {
   createGroup,
   createGroupInvite,
   deleteGroup,
+  leaveGroup,
   updateGroup,
 } from "@/services/groups";
 import type { GroupActionState, GroupInviteActionState } from "./types";
@@ -103,6 +104,28 @@ export async function createGroupInviteAction(
     message: result.message,
     invitePath: result.invitePath,
   };
+}
+
+export async function leaveGroupAction(
+  groupId: number,
+  previousState: GroupActionState,
+): Promise<GroupActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/groups/${groupId}/leave`);
+  }
+
+  const result = await leaveGroup(currentUser.id, groupId);
+
+  if (!result.ok) {
+    return result;
+  }
+
+  revalidateGroupPaths(groupId);
+  redirect("/groups");
 }
 
 function getGroupFormInput(formData: FormData) {
