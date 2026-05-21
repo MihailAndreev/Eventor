@@ -3,7 +3,16 @@ export type GroupActionState = {
   ok: boolean;
 };
 
+export type GroupInviteActionState = GroupActionState & {
+  invitePath?: string;
+};
+
 export const initialGroupActionState = {
   message: "",
   ok: true,
 } satisfies GroupActionState;
+
+export const initialGroupInviteActionState = {
+  message: "",
+  ok: true,
+} satisfies GroupInviteActionState;

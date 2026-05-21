@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { safeRedirectPath } from "@/lib/auth/redirect";
 import { LoginForm } from "@/components/auth/login-form";
 import { getCurrentUser } from "@/lib/auth/session";
 
@@ -10,12 +11,13 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const currentUser = await getCurrentUser();
+  const redirectTo = safeRedirectPath(
+    typeof params.from === "string" ? params.from : "/dashboard",
+  );
 
   if (currentUser) {
-    redirect("/dashboard");
+    redirect(redirectTo);
   }
-
-  const redirectTo = typeof params.from === "string" ? params.from : "/dashboard";
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 py-12 sm:px-6">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { GroupEventList } from "@/components/groups/group-event-list";
+import { GroupInvitePanel } from "@/components/groups/group-invite-panel";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUserGroupAccess } from "@/services/groups";
 import type { GroupMemberSummary } from "@/services/groups";
@@ -127,6 +128,9 @@ export default async function GroupPage({
         </main>
 
         <aside className="grid gap-4 lg:sticky lg:top-6">
+          {group.currentUserIsManager ? (
+            <GroupInvitePanel groupId={group.id} />
+          ) : null}
           <MemberSection title="Managers" members={group.managers} />
           <MemberSection title="Members" members={group.members} />
         </aside>

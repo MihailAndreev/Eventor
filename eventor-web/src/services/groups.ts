@@ -1,10 +1,12 @@
 import "server-only";
 
+import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   eventParticipants,
   events,
+  groupInvites,
   groupMembers,
   groups,
   users,
@@ -60,6 +62,14 @@ export type GroupManagementAccessResult =
 export type GroupMutationResult =
   | { ok: true; message: string; groupId?: number }
   | { ok: false; message: string };
+
+export type GroupInviteCreationResult =
+  | { ok: true; message: string; invitePath: string; inviteToken: string }
+  | { ok: false; message: string };
+
+export type GroupInviteAcceptanceResult =
+  | { ok: true; status: "accepted" | "already_member"; message: string; groupId: number }
+  | { ok: false; message: string; groupId?: number };
 
 type GroupEventRow = {
   id: number;
@@ -310,6 +320,171 @@ export async function deleteGroup(
   return { ok: true, message: "Group deleted." };
 }
 
+export async function createGroupInvite(
+  userId: number,
+  groupId: number,
+): Promise<GroupInviteCreationResult> {
+  const access = await getUserGroupManagementAccess(userId, groupId);
+
+  if (!access.ok) {
+    return getGroupInviteAccessError(access.reason);
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const inviteToken = randomBytes(32).toString("base64url");
+    const [createdInvite] = await db
+      .insert(groupInvites)
+      .values({
+        groupId,
+        createdByUserId: userId,
+        inviteToken,
+        status: "pending",
+        isActive: true,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning({ inviteToken: groupInvites.inviteToken });
+
+    if (createdInvite) {
+      return {
+        ok: true,
+        message: "Invite link created.",
+        invitePath: `/groups/${groupId}/join?code=${createdInvite.inviteToken}`,
+        inviteToken: createdInvite.inviteToken,
+      };
+    }
+  }
+
+  return { ok: false, message: "Invite link could not be created. Try again." };
+}
+
+export async function acceptGroupInvite(
+  userId: number,
+  groupId: number,
+  inviteToken: string,
+): Promise<GroupInviteAcceptanceResult> {
+  const normalizedToken = inviteToken.trim();
+
+  if (normalizedToken.length === 0) {
+    return { ok: false, message: "This invite link is missing its invite code." };
+  }
+
+  const [invite] = await db
+    .select({
+      id: groupInvites.id,
+      groupId: groupInvites.groupId,
+      status: groupInvites.status,
+      isActive: groupInvites.isActive,
+      expiresAt: groupInvites.expiresAt,
+    })
+    .from(groupInvites)
+    .where(
+      and(
+        eq(groupInvites.groupId, groupId),
+        eq(groupInvites.inviteToken, normalizedToken),
+      ),
+    )
+    .limit(1);
+
+  if (!invite) {
+    return {
+      ok: false,
+      message: "This invite link is not valid for this group.",
+      groupId,
+    };
+  }
+
+  const existingMembership = await getGroupMembership(userId, groupId);
+
+  if (existingMembership) {
+    return {
+      ok: true,
+      status: "already_member",
+      message: "You are already a member of this group.",
+      groupId,
+    };
+  }
+
+  if (!invite.isActive || invite.status === "revoked") {
+    return {
+      ok: false,
+      message: "This invite link has been revoked.",
+      groupId,
+    };
+  }
+
+  if (invite.status === "accepted") {
+    return {
+      ok: false,
+      message: "This invite link has already been used.",
+      groupId,
+    };
+  }
+
+  if (
+    invite.status === "expired" ||
+    (invite.expiresAt && invite.expiresAt.getTime() <= Date.now())
+  ) {
+    return {
+      ok: false,
+      message: "This invite link has expired.",
+      groupId,
+    };
+  }
+
+  const now = new Date();
+  const [consumedInvite] = await db
+    .update(groupInvites)
+    .set({
+      status: "accepted",
+      isActive: false,
+      acceptedAt: now,
+    })
+    .where(
+      and(
+        eq(groupInvites.id, invite.id),
+        eq(groupInvites.status, "pending"),
+        eq(groupInvites.isActive, true),
+      ),
+    )
+    .returning({ id: groupInvites.id });
+
+  if (!consumedInvite) {
+    return {
+      ok: false,
+      message: "This invite link has already been used.",
+      groupId,
+    };
+  }
+
+  const [createdMembership] = await db
+    .insert(groupMembers)
+    .values({
+      groupId,
+      userId,
+      isManager: false,
+      joinedAt: now,
+    })
+    .onConflictDoNothing()
+    .returning({ id: groupMembers.id });
+
+  if (!createdMembership) {
+    return {
+      ok: true,
+      status: "already_member",
+      message: "You are already a member of this group.",
+      groupId,
+    };
+  }
+
+  return {
+    ok: true,
+    status: "accepted",
+    message: "You joined the group.",
+    groupId,
+  };
+}
+
 async function getGroupMembers(groupId: number): Promise<GroupMemberSummary[]> {
   const members = await db
     .select({
@@ -325,6 +500,21 @@ async function getGroupMembers(groupId: number): Promise<GroupMemberSummary[]> {
     .orderBy(desc(groupMembers.isManager), asc(users.name));
 
   return members;
+}
+
+async function getGroupMembership(userId: number, groupId: number) {
+  const [membership] = await db
+    .select({ id: groupMembers.id })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  return membership;
 }
 
 async function getGroupEventRows(groupId: number): Promise<GroupEventRow[]> {
@@ -447,5 +637,18 @@ function getGroupAccessMutationError(
       return { ok: false, message: "You are not a member of this group." };
     case "not_manager":
       return { ok: false, message: "Only group managers can change this group." };
+  }
+}
+
+function getGroupInviteAccessError(
+  reason: "not_found" | "not_member" | "not_manager",
+): GroupInviteCreationResult {
+  switch (reason) {
+    case "not_found":
+      return { ok: false, message: "Group not found." };
+    case "not_member":
+      return { ok: false, message: "You are not a member of this group." };
+    case "not_manager":
+      return { ok: false, message: "Only group managers can create invite links." };
   }
 }

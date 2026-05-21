@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { safeRedirectPath } from "@/lib/auth/redirect";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { loginUser, registerUser } from "@/services/users";
 import type { AuthActionState } from "./types";
@@ -55,12 +56,4 @@ export async function registerAction(
 export async function logoutAction() {
   await destroySession();
   redirect("/");
-}
-
-function safeRedirectPath(path: string) {
-  if (!path.startsWith("/") || path.startsWith("//")) {
-    return "/";
-  }
-
-  return path;
 }

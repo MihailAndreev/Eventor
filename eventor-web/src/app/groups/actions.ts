@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import {
   createGroup,
+  createGroupInvite,
   deleteGroup,
   updateGroup,
 } from "@/services/groups";
-import type { GroupActionState } from "./types";
+import type { GroupActionState, GroupInviteActionState } from "./types";
 
 export async function createGroupAction(
   _previousState: GroupActionState,
@@ -75,6 +76,33 @@ export async function deleteGroupAction(
 
   revalidateGroupPaths(groupId);
   redirect("/groups");
+}
+
+export async function createGroupInviteAction(
+  groupId: number,
+  previousState: GroupInviteActionState,
+): Promise<GroupInviteActionState> {
+  void previousState;
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect(`/login?from=/groups/${groupId}`);
+  }
+
+  const result = await createGroupInvite(currentUser.id, groupId);
+
+  if (!result.ok) {
+    return result;
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+
+  return {
+    ok: true,
+    message: result.message,
+    invitePath: result.invitePath,
+  };
 }
 
 function getGroupFormInput(formData: FormData) {

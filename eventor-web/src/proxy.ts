@@ -11,7 +11,7 @@ const corsHeaders = {
 };
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) {
     if (request.method === "OPTIONS") {
@@ -43,7 +43,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("from", pathname);
+  loginUrl.searchParams.set("from", `${pathname}${search}`);
 
   const response = NextResponse.redirect(loginUrl);
   response.cookies.delete(SESSION_COOKIE_NAME);
