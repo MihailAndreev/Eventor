@@ -29,6 +29,11 @@ export type UserGroupSummary = {
   currentUserIsManager: boolean;
 };
 
+export type ManagedGroupChoice = {
+  id: number;
+  title: string;
+};
+
 export type UserGroupsPageInput = {
   page?: number;
   pageSize?: number;
@@ -168,6 +173,20 @@ export async function getUserGroups(userId: number): Promise<UserGroupSummary[]>
     memberCount: memberCountsByGroup.get(group.id) ?? 0,
     activeEventCount: activeEventCountsByGroup.get(group.id) ?? 0,
   }));
+}
+
+export async function getUserManagedGroups(
+  userId: number,
+): Promise<ManagedGroupChoice[]> {
+  return db
+    .select({
+      id: groups.id,
+      title: groups.title,
+    })
+    .from(groupMembers)
+    .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+    .where(and(eq(groupMembers.userId, userId), eq(groupMembers.isManager, true)))
+    .orderBy(asc(groups.title), asc(groups.id));
 }
 
 export async function getUserGroupsPage(
