@@ -89,6 +89,27 @@ export type EventMutationResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
+export type EventManagementDetails = {
+  id: number;
+  groupId: number;
+  groupTitle: string;
+  title: string;
+  description: string | null;
+  eventDate: string;
+  eventTime: string;
+  location: string | null;
+  capacity: number | null;
+  canceled: boolean;
+};
+
+export type EventManagementAccessResult =
+  | { ok: true; event: EventManagementDetails }
+  | { ok: false; reason: "not_found" | "not_member" | "not_manager" };
+
+export type EventManagementMutationResult =
+  | { ok: true; message: string; eventId?: number }
+  | { ok: false; message: string };
+
 export type PagedEventsResult = {
   events: DashboardEvent[];
   page: number;
@@ -437,6 +458,159 @@ export async function updateEventExtraSlots(
   return { ok: true, message: "Reserved slots updated." };
 }
 
+export async function getEventManagementAccess(
+  userId: number,
+  groupId: number,
+  eventId: number,
+): Promise<EventManagementAccessResult> {
+  const [group] = await db
+    .select({ id: groups.id, title: groups.title })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+
+  if (!group) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const [event] = await db
+    .select({
+      id: events.id,
+      groupId: events.groupId,
+      groupTitle: groups.title,
+      title: events.title,
+      description: events.description,
+      eventDate: events.eventDate,
+      eventTime: events.eventTime,
+      location: events.location,
+      capacity: events.capacity,
+      canceled: events.canceled,
+    })
+    .from(events)
+    .innerJoin(groups, eq(events.groupId, groups.id))
+    .where(and(eq(events.id, eventId), eq(events.groupId, groupId)))
+    .limit(1);
+
+  if (!event) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const [membership] = await db
+    .select({ isManager: groupMembers.isManager })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!membership) {
+    return { ok: false, reason: "not_member" };
+  }
+
+  if (!membership.isManager) {
+    return { ok: false, reason: "not_manager" };
+  }
+
+  return { ok: true, event };
+}
+
+export async function createManagedEvent(
+  userId: number,
+  groupId: number,
+  input: EventManagementFormInput,
+): Promise<EventManagementMutationResult> {
+  const managerAccess = await getGroupManagerAccess(userId, groupId);
+
+  if (!managerAccess.ok) {
+    return getEventManagementMutationError(managerAccess.reason);
+  }
+
+  const validation = validateEventManagementInput(input);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const [createdEvent] = await db
+    .insert(events)
+    .values({
+      groupId,
+      title: validation.title,
+      description: validation.description,
+      eventDate: validation.eventDate,
+      eventTime: validation.eventTime,
+      location: validation.location,
+      capacity: validation.capacity,
+      canceled: false,
+      createdByUserId: userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning({ id: events.id });
+
+  if (!createdEvent) {
+    return { ok: false, message: "Event could not be created." };
+  }
+
+  return { ok: true, message: "Event created.", eventId: createdEvent.id };
+}
+
+export async function updateManagedEvent(
+  userId: number,
+  groupId: number,
+  eventId: number,
+  input: EventManagementFormInput,
+): Promise<EventManagementMutationResult> {
+  const access = await getEventManagementAccess(userId, groupId, eventId);
+
+  if (!access.ok) {
+    return getEventManagementMutationError(access.reason);
+  }
+
+  const validation = validateEventManagementInput(input);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  await db
+    .update(events)
+    .set({
+      title: validation.title,
+      description: validation.description,
+      eventDate: validation.eventDate,
+      eventTime: validation.eventTime,
+      location: validation.location,
+      capacity: validation.capacity,
+      canceled: validation.canceled,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(events.id, eventId), eq(events.groupId, groupId)));
+
+  return { ok: true, message: "Event updated.", eventId };
+}
+
+export async function deleteManagedEvent(
+  userId: number,
+  groupId: number,
+  eventId: number,
+): Promise<EventManagementMutationResult> {
+  const access = await getEventManagementAccess(userId, groupId, eventId);
+
+  if (!access.ok) {
+    return getEventManagementMutationError(access.reason);
+  }
+
+  await db
+    .delete(events)
+    .where(and(eq(events.id, eventId), eq(events.groupId, groupId)));
+
+  return { ok: true, message: "Event deleted." };
+}
+
 export async function addEventComment(
   userId: number,
   eventId: number,
@@ -774,6 +948,168 @@ async function getEventCommentForMutation(eventId: number, commentId: number) {
     .limit(1);
 
   return comment;
+}
+
+type EventManagementFormInput = {
+  title: string;
+  description: string;
+  eventDate: string;
+  eventTime: string;
+  location: string;
+  capacity: string;
+  canceled?: boolean;
+};
+
+async function getGroupManagerAccess(userId: number, groupId: number) {
+  const [group] = await db
+    .select({ id: groups.id })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+
+  if (!group) {
+    return { ok: false as const, reason: "not_found" as const };
+  }
+
+  const [membership] = await db
+    .select({ isManager: groupMembers.isManager })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!membership) {
+    return { ok: false as const, reason: "not_member" as const };
+  }
+
+  if (!membership.isManager) {
+    return { ok: false as const, reason: "not_manager" as const };
+  }
+
+  return { ok: true as const };
+}
+
+function validateEventManagementInput(
+  input: EventManagementFormInput,
+):
+  | {
+      ok: true;
+      title: string;
+      description: string | null;
+      eventDate: string;
+      eventTime: string;
+      location: string | null;
+      capacity: number | null;
+      canceled: boolean;
+    }
+  | { ok: false; message: string } {
+  const title = input.title.trim();
+  const description = input.description.trim();
+  const location = input.location.trim();
+  const eventDate = input.eventDate.trim();
+  const eventTime = input.eventTime.trim();
+  const capacity = input.capacity.trim();
+
+  if (title.length === 0) {
+    return { ok: false, message: "Enter an event title." };
+  }
+
+  if (title.length > 180) {
+    return { ok: false, message: "Event titles must be 180 characters or less." };
+  }
+
+  if (description.length > 2000) {
+    return {
+      ok: false,
+      message: "Event descriptions must be 2000 characters or less.",
+    };
+  }
+
+  if (!isValidDateInput(eventDate)) {
+    return { ok: false, message: "Enter a valid event date." };
+  }
+
+  if (!isValidTimeInput(eventTime)) {
+    return { ok: false, message: "Enter a valid event time." };
+  }
+
+  if (location.length > 240) {
+    return { ok: false, message: "Locations must be 240 characters or less." };
+  }
+
+  const parsedCapacity = parseCapacityInput(capacity);
+
+  if (!parsedCapacity.ok) {
+    return parsedCapacity;
+  }
+
+  return {
+    ok: true,
+    title,
+    description: description.length > 0 ? description : null,
+    eventDate,
+    eventTime,
+    location: location.length > 0 ? location : null,
+    capacity: parsedCapacity.capacity,
+    canceled: input.canceled ?? false,
+  };
+}
+
+function isValidDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function isValidTimeInput(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function parseCapacityInput(
+  value: string,
+): { ok: true; capacity: number | null } | { ok: false; message: string } {
+  if (value.length === 0) {
+    return { ok: true, capacity: null };
+  }
+
+  const capacity = Number(value);
+
+  if (!Number.isInteger(capacity) || capacity < 1) {
+    return { ok: false, message: "Capacity must be empty or a positive integer." };
+  }
+
+  if (capacity > 100000) {
+    return { ok: false, message: "Capacity is too large." };
+  }
+
+  return { ok: true, capacity };
+}
+
+function getEventManagementMutationError(
+  reason: "not_found" | "not_member" | "not_manager",
+): EventManagementMutationResult {
+  switch (reason) {
+    case "not_found":
+      return { ok: false, message: "Event not found." };
+    case "not_member":
+      return { ok: false, message: "You are not a member of this group." };
+    case "not_manager":
+      return { ok: false, message: "Only group managers can change events." };
+  }
 }
 
 function validateCommentText(

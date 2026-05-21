@@ -86,6 +86,12 @@ export default async function GroupPage({
             {group.currentUserIsManager ? (
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 <Link
+                  href={`/groups/${group.id}/events/new`}
+                  className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Create Event
+                </Link>
+                <Link
                   href={`/groups/${group.id}/edit`}
                   className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
                 >
@@ -112,7 +118,11 @@ export default async function GroupPage({
                 Activities planned inside this group.
               </p>
             </div>
-            <GroupEventList events={group.events} />
+            <GroupEventList
+              events={group.events}
+              groupId={group.id}
+              canManageEvents={group.currentUserIsManager}
+            />
           </section>
         </main>
 

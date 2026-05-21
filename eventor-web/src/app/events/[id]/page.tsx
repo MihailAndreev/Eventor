@@ -50,12 +50,23 @@ export default async function EventPage({
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-5 px-5 py-10 sm:px-6 lg:px-8">
-      <Link
-        href="/dashboard"
-        className="w-fit rounded-md px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+      <nav
+        aria-label="Event navigation"
+        className="flex flex-wrap items-center gap-2"
       >
-        Back to dashboard
-      </Link>
+        <Link
+          href="/dashboard"
+          className="inline-flex h-10 max-w-full items-center rounded-md px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+        >
+          Back to dashboard
+        </Link>
+        <Link
+          href={`/groups/${access.event.groupId}`}
+          className="inline-flex h-10 max-w-full items-center rounded-md px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+        >
+          <span className="truncate">Back to {access.event.groupTitle}</span>
+        </Link>
+      </nav>
       <EventDetails event={access.event} currentUserId={currentUser.id} />
     </div>
   );

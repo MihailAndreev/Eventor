@@ -1,7 +1,15 @@
 import Link from "next/link";
 import type { GroupEventSummary } from "@/services/groups";
 
-export function GroupEventList({ events }: { events: GroupEventSummary[] }) {
+export function GroupEventList({
+  events,
+  groupId,
+  canManageEvents = false,
+}: {
+  events: GroupEventSummary[];
+  groupId: number;
+  canManageEvents?: boolean;
+}) {
   if (events.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6">
@@ -18,7 +26,9 @@ export function GroupEventList({ events }: { events: GroupEventSummary[] }) {
       {events.map((event) => (
         <article
           key={event.id}
-          className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+          className={`rounded-lg border border-slate-200 p-4 shadow-sm ${
+            event.isActive ? "bg-white" : "bg-slate-50/80"
+          }`}
         >
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div className="min-w-0">
@@ -42,12 +52,30 @@ export function GroupEventList({ events }: { events: GroupEventSummary[] }) {
                 {getCapacityText(event)}
               </p>
             </div>
-            <Link
-              href={`/events/${event.id}`}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              View event
-            </Link>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <Link
+                href={`/events/${event.id}`}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                View event
+              </Link>
+              {canManageEvents ? (
+                <>
+                  <Link
+                    href={`/groups/${groupId}/events/${event.id}/edit`}
+                    className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
+                  >
+                    Edit
+                  </Link>
+                  <Link
+                    href={`/groups/${groupId}/events/${event.id}/delete`}
+                    className="inline-flex h-10 items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-100"
+                  >
+                    Delete
+                  </Link>
+                </>
+              ) : null}
+            </div>
           </div>
         </article>
       ))}
