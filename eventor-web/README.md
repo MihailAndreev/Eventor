@@ -2,6 +2,22 @@
 
 Build **Eventor**: a software product for groups of people who plan, organize and join shared events.
 
+## Testing
+
+Run unit tests with:
+
+```bash
+npm test
+```
+
+Run Web API and backend integration tests with:
+
+```bash
+npm run test:integration
+```
+
+Integration tests require `TEST_DATABASE_URL` in `eventor-web/.env`. It must point to a Neon test branch, not production. The integration runner refuses to start when `TEST_DATABASE_URL` is missing or when it matches the original `DATABASE_URL`; during the run it maps `DATABASE_URL` to `TEST_DATABASE_URL`, applies Drizzle migrations, truncates the application tables, and seeds deterministic test data.
+
 Eventor is suitable for friends, colleagues, clubs, hobby groups, hiking groups, study groups, family groups and communities with recurring activities.
 
 - The app holds groups, where events are organized.
