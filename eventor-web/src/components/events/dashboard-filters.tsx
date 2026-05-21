@@ -7,6 +7,7 @@ export type DashboardView = "active" | "archive";
 type DashboardViewTabsProps = {
   selectedView: DashboardView;
   selectedGroupSlug?: string;
+  pageSize: number;
 };
 
 type GroupFilterTabsProps = {
@@ -15,11 +16,13 @@ type GroupFilterTabsProps = {
   allCount: number;
   selectedView: DashboardView;
   selectedGroupSlug?: string;
+  pageSize: number;
 };
 
 export function DashboardViewTabs({
   selectedView,
   selectedGroupSlug,
+  pageSize,
 }: DashboardViewTabsProps) {
   const views: Array<{ value: DashboardView; label: string }> = [
     { value: "active", label: "Active Events" },
@@ -37,7 +40,11 @@ export function DashboardViewTabs({
         return (
           <Link
             key={view.value}
-            href={getDashboardHref(view.value, selectedGroupSlug)}
+            href={getDashboardHref({
+              view: view.value,
+              groupSlug: selectedGroupSlug,
+              pageSize,
+            })}
             aria-current={active ? "page" : undefined}
             className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition ${
               active
@@ -59,18 +66,27 @@ export function GroupFilterTabs({
   allCount,
   selectedView,
   selectedGroupSlug,
+  pageSize,
 }: GroupFilterTabsProps) {
-  const allGroupsHref = getDashboardHref(selectedView);
+  const allGroupsHref = getDashboardHref({ view: selectedView, pageSize });
   const options = [
     { href: allGroupsHref, key: "all-groups", label: `All groups (${allCount})` },
     ...groups.map((group) => ({
-      href: getDashboardHref(selectedView, group.slug),
+      href: getDashboardHref({
+        view: selectedView,
+        groupSlug: group.slug,
+        pageSize,
+      }),
       key: `group-${group.id}`,
       label: `${group.title} (${countsByGroup.get(group.slug) ?? 0})`,
     })),
   ];
   const selectedHref = selectedGroupSlug
-    ? getDashboardHref(selectedView, selectedGroupSlug)
+    ? getDashboardHref({
+        view: selectedView,
+        groupSlug: selectedGroupSlug,
+        pageSize,
+      })
     : allGroupsHref;
 
   return (
@@ -95,7 +111,11 @@ export function GroupFilterTabs({
           return (
             <Link
               key={group.id}
-              href={getDashboardHref(selectedView, group.slug)}
+              href={getDashboardHref({
+                view: selectedView,
+                groupSlug: group.slug,
+                pageSize,
+              })}
               aria-current={active ? "page" : undefined}
               className={getGroupTabClass(active)}
             >
@@ -108,10 +128,22 @@ export function GroupFilterTabs({
   );
 }
 
-function getDashboardHref(view: DashboardView, groupSlug?: string) {
+function getDashboardHref({
+  view,
+  groupSlug,
+  page = 1,
+  pageSize,
+}: {
+  view: DashboardView;
+  groupSlug?: string;
+  page?: number;
+  pageSize: number;
+}) {
   const params = new URLSearchParams();
 
   params.set("view", view);
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
 
   if (groupSlug) {
     params.set("group", groupSlug);

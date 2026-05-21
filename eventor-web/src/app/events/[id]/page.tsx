@@ -56,7 +56,7 @@ export default async function EventPage({
       >
         Back to dashboard
       </Link>
-      <EventDetails event={access.event} />
+      <EventDetails event={access.event} currentUserId={currentUser.id} />
     </div>
   );
 }

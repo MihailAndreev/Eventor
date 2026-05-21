@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   eventComments,
@@ -33,8 +33,10 @@ export type DashboardGroup = {
 
 export type EventComment = {
   id: number;
+  userId: number;
   text: string;
   createdAt: Date;
+  updatedAt: Date;
   authorName: string;
 };
 
@@ -59,6 +61,7 @@ export type DashboardEvent = {
   commentsCount: number;
   participants: DashboardEventParticipant[];
   comments: EventComment[];
+  currentUserCanManageGroup: boolean;
   currentUserParticipation: {
     joined: boolean;
     extraSlots: number;
@@ -94,6 +97,19 @@ export type PagedEventsResult = {
   totalPages: number;
 };
 
+export type DashboardEventsPageInput = {
+  view?: "active" | "archive";
+  groupId?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+export type DashboardEventsPageResult = PagedEventsResult & {
+  groups: DashboardGroup[];
+  countsByGroup: Map<string, number>;
+  allCount: number;
+};
+
 export async function getUserDashboardEvents(userId: number) {
   const [userGroups, eventRows] = await Promise.all([
     getUserDashboardGroups(userId),
@@ -116,19 +132,111 @@ export async function getUserActiveEventsPage(
   userId: number,
   input: { page?: number; pageSize?: number } = {},
 ): Promise<PagedEventsResult> {
-  const page = normalizePositiveInteger(input.page, 1);
-  const pageSize = Math.min(normalizePositiveInteger(input.pageSize, 20), 100);
-  const eventRows = await getUserEventRows(userId);
-  const eventsWithStats = await hydrateEvents(eventRows, userId);
-  const activeEvents = eventsWithStats
-    .filter((event) => event.isActive)
-    .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
-  const total = activeEvents.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const offset = (page - 1) * pageSize;
+  const result = await getUserDashboardEventsPage(userId, {
+    view: "active",
+    page: input.page,
+    pageSize: input.pageSize,
+  });
 
   return {
-    events: activeEvents.slice(offset, offset + pageSize),
+    events: result.events,
+    page: result.page,
+    pageSize: result.pageSize,
+    total: result.total,
+    totalPages: result.totalPages,
+  };
+}
+
+export async function getUserDashboardEventsPage(
+  userId: number,
+  input: DashboardEventsPageInput = {},
+): Promise<DashboardEventsPageResult> {
+  const view = input.view ?? "active";
+  const page = normalizePositiveInteger(input.page, 1);
+  const pageSize = Math.min(normalizePositiveInteger(input.pageSize, 10), 50);
+  const offset = (page - 1) * pageSize;
+  const userGroups = await getUserDashboardGroups(userId);
+
+  if (userGroups.length === 0) {
+    return {
+      groups: [],
+      events: [],
+      countsByGroup: new Map(),
+      allCount: 0,
+      page,
+      pageSize,
+      total: 0,
+      totalPages: 1,
+    };
+  }
+
+  const viewFilter = getDashboardViewFilter(view);
+  const baseFilters = [
+    eq(groupMembers.userId, userId),
+    viewFilter,
+  ];
+
+  const groupScopedFilters =
+    input.groupId === undefined
+      ? baseFilters
+      : [...baseFilters, eq(events.groupId, input.groupId)];
+
+  const [totalRow] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(events)
+    .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
+    .where(and(...groupScopedFilters));
+
+  const countRows = await db
+    .select({
+      groupId: events.groupId,
+      groupTitle: groups.title,
+      total: sql<number>`count(*)::int`,
+    })
+    .from(events)
+    .innerJoin(groups, eq(events.groupId, groups.id))
+    .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
+    .where(and(...baseFilters))
+    .groupBy(events.groupId, groups.title);
+
+  const total = totalRow?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const orderBy = getDashboardViewOrder(view);
+  const eventRows = await db
+    .select({
+      id: events.id,
+      groupId: events.groupId,
+      title: events.title,
+      description: events.description,
+      groupTitle: groups.title,
+      eventDate: events.eventDate,
+      eventTime: events.eventTime,
+      location: events.location,
+      capacity: events.capacity,
+      canceled: events.canceled,
+    })
+    .from(events)
+    .innerJoin(groups, eq(events.groupId, groups.id))
+    .innerJoin(groupMembers, eq(groupMembers.groupId, events.groupId))
+    .where(and(...groupScopedFilters))
+    .orderBy(orderBy, events.id)
+    .limit(pageSize)
+    .offset(offset);
+  const pagedEvents = await hydrateEvents(eventRows, userId);
+  const sortedEvents = pagedEvents.sort((a, b) =>
+    view === "active"
+      ? a.startAt.getTime() - b.startAt.getTime()
+      : b.startAt.getTime() - a.startAt.getTime(),
+  );
+  const countsByGroup = new Map(
+    countRows.map((row) => [slugify(row.groupTitle, row.groupId), row.total]),
+  );
+
+  return {
+    groups: userGroups,
+    events: sortedEvents,
+    countsByGroup,
+    allCount: countRows.reduce((sum, row) => sum + row.total, 0),
     page,
     pageSize,
     total,
@@ -175,7 +283,7 @@ export async function getUserEventAccess(
   }
 
   const [membership] = await db
-    .select({ id: groupMembers.id })
+    .select({ id: groupMembers.id, isManager: groupMembers.isManager })
     .from(groupMembers)
     .where(
       and(
@@ -195,7 +303,10 @@ export async function getUserEventAccess(
     return { ok: false, reason: "not_found" };
   }
 
-  return { ok: true, event };
+  return {
+    ok: true,
+    event: { ...event, currentUserCanManageGroup: membership.isManager },
+  };
 }
 
 export async function joinEvent(
@@ -326,6 +437,115 @@ export async function updateEventExtraSlots(
   return { ok: true, message: "Reserved slots updated." };
 }
 
+export async function addEventComment(
+  userId: number,
+  eventId: number,
+  text: string,
+): Promise<EventMutationResult> {
+  const access = await getUserEventAccess(userId, eventId);
+
+  if (!access.ok) {
+    return access.reason === "not_member"
+      ? { ok: false, message: "You are not a member of this event group." }
+      : { ok: false, message: "Event not found." };
+  }
+
+  const validation = validateCommentText(text);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  await db.insert(eventComments).values({
+    eventId,
+    userId,
+    text: validation.text,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  return { ok: true, message: "Comment added." };
+}
+
+export async function updateEventComment(
+  userId: number,
+  eventId: number,
+  commentId: number,
+  text: string,
+): Promise<EventMutationResult> {
+  const access = await getUserEventAccess(userId, eventId);
+
+  if (!access.ok) {
+    return access.reason === "not_member"
+      ? { ok: false, message: "You are not a member of this event group." }
+      : { ok: false, message: "Event not found." };
+  }
+
+  const validation = validateCommentText(text);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const comment = await getEventCommentForMutation(eventId, commentId);
+
+  if (!comment) {
+    return { ok: false, message: "Comment not found." };
+  }
+
+  if (comment.userId !== userId) {
+    return { ok: false, message: "You can only edit your own comments." };
+  }
+
+  await db
+    .update(eventComments)
+    .set({ text: validation.text, updatedAt: new Date() })
+    .where(and(eq(eventComments.id, commentId), eq(eventComments.eventId, eventId)));
+
+  return { ok: true, message: "Comment updated." };
+}
+
+export async function deleteEventComment(
+  userId: number,
+  eventId: number,
+  commentId: number,
+): Promise<EventMutationResult> {
+  const access = await getUserEventAccess(userId, eventId);
+
+  if (!access.ok) {
+    return access.reason === "not_member"
+      ? { ok: false, message: "You are not a member of this event group." }
+      : { ok: false, message: "Event not found." };
+  }
+
+  const comment = await getEventCommentForMutation(eventId, commentId);
+
+  if (!comment) {
+    return { ok: false, message: "Comment not found." };
+  }
+
+  const [membership] = await db
+    .select({ isManager: groupMembers.isManager })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, access.event.groupId),
+        eq(groupMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (comment.userId !== userId && !membership?.isManager) {
+    return { ok: false, message: "You can only delete comments you own." };
+  }
+
+  await db
+    .delete(eventComments)
+    .where(and(eq(eventComments.id, commentId), eq(eventComments.eventId, eventId)));
+
+  return { ok: true, message: "Comment deleted." };
+}
+
 export function getCapacityLabel(event: Pick<DashboardEvent, "capacity" | "capacityState">) {
   switch (event.capacityState) {
     case "unlimited":
@@ -436,8 +656,10 @@ async function hydrateEvents(
     .select({
       id: eventComments.id,
       eventId: eventComments.eventId,
+      userId: eventComments.userId,
       text: eventComments.text,
       createdAt: eventComments.createdAt,
+      updatedAt: eventComments.updatedAt,
       authorName: users.name,
     })
     .from(eventComments)
@@ -476,8 +698,10 @@ async function hydrateEvents(
     const comments = commentsByEvent.get(comment.eventId) ?? [];
     comments.push({
       id: comment.id,
+      userId: comment.userId,
       text: comment.text,
       createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt,
       authorName: comment.authorName,
     });
     commentsByEvent.set(comment.eventId, comments);
@@ -507,12 +731,65 @@ async function hydrateEvents(
       commentsCount: commentsCountByEvent.get(event.id) ?? 0,
       participants: participantsByEvent.get(event.id) ?? [],
       comments: commentsByEvent.get(event.id) ?? [],
+      currentUserCanManageGroup: false,
       currentUserParticipation: {
         joined: currentUserParticipant !== undefined,
         extraSlots: currentUserParticipant?.extraSlots ?? 0,
       },
     };
   });
+}
+
+function getDashboardViewFilter(view: "active" | "archive") {
+  const activeFilter = and(
+    eq(events.canceled, false),
+    sql<boolean>`(${events.eventDate} + ${events.eventTime}) >= now() - interval '1 hour'`,
+  );
+
+  if (view === "active") {
+    return activeFilter;
+  }
+
+  return or(
+    eq(events.canceled, true),
+    sql<boolean>`(${events.eventDate} + ${events.eventTime}) < now() - interval '1 hour'`,
+  );
+}
+
+function getDashboardViewOrder(view: "active" | "archive") {
+  const startAtExpression = sql`${events.eventDate} + ${events.eventTime}`;
+
+  return view === "active" ? asc(startAtExpression) : desc(startAtExpression);
+}
+
+async function getEventCommentForMutation(eventId: number, commentId: number) {
+  const [comment] = await db
+    .select({
+      id: eventComments.id,
+      eventId: eventComments.eventId,
+      userId: eventComments.userId,
+    })
+    .from(eventComments)
+    .where(and(eq(eventComments.id, commentId), eq(eventComments.eventId, eventId)))
+    .limit(1);
+
+  return comment;
+}
+
+function validateCommentText(
+  text: string,
+): { ok: true; text: string } | { ok: false; message: string } {
+  const trimmedText = text.trim();
+
+  if (trimmedText.length === 0) {
+    return { ok: false, message: "Enter a comment before saving." };
+  }
+
+  if (trimmedText.length > 1000) {
+    return { ok: false, message: "Comments must be 1000 characters or less." };
+  }
+
+  return { ok: true, text: trimmedText };
 }
 
 function slugify(value: string, id: number) {

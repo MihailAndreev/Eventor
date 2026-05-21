@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { EventActions } from "@/components/events/event-actions";
+import { EventComments } from "@/components/events/event-comments";
 import {
   DashboardEvent,
   getCapacityLabel,
@@ -56,7 +57,13 @@ export function EventCard({ event, muted = false }: EventCardProps) {
   );
 }
 
-export function EventDetails({ event }: { event: DashboardEvent }) {
+export function EventDetails({
+  event,
+  currentUserId,
+}: {
+  event: DashboardEvent;
+  currentUserId: number;
+}) {
   return (
     <div className="grid gap-6">
       <EventHeader event={event} variant="detail" />
@@ -96,7 +103,12 @@ export function EventDetails({ event }: { event: DashboardEvent }) {
                 Latest activity for this event.
               </p>
             </div>
-            <CommentFeed event={event} />
+            <EventComments
+              eventId={event.id}
+              comments={event.comments}
+              currentUserId={currentUserId}
+              canManageComments={event.currentUserCanManageGroup}
+            />
           </section>
         </div>
 
@@ -308,35 +320,6 @@ function CapacitySummary({ event }: { event: DashboardEvent }) {
   );
 }
 
-function CommentFeed({ event }: { event: DashboardEvent }) {
-  if (event.comments.length === 0) {
-    return <p className="text-sm text-slate-500">No comments yet.</p>;
-  }
-
-  return (
-    <ol className="relative grid gap-4 border-l border-slate-200 pl-4">
-      {event.comments.map((comment) => (
-        <li key={comment.id} className="relative">
-          <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-[#007EA0] ring-4 ring-white" />
-          <div className="rounded-md bg-slate-50 px-3 py-2">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-semibold text-slate-950">
-                {comment.authorName}
-              </p>
-              <time className="text-xs text-slate-500">
-                {formatDateTime(comment.createdAt)}
-              </time>
-            </div>
-            <p className="mt-1 text-sm leading-6 text-slate-700">
-              {comment.text}
-            </p>
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function Badge({
   children,
   tone,
@@ -363,16 +346,6 @@ function formatDate(date: Date) {
 
 function formatTime(date: Date) {
   return new Intl.DateTimeFormat("en", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
   }).format(date);

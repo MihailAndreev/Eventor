@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   DashboardViewTabs,
@@ -5,7 +6,7 @@ import {
 } from "@/components/events/dashboard-filters";
 import { EventCard } from "@/components/events/event-card";
 import { getCurrentUser } from "@/lib/auth/session";
-import { DashboardEvent, getUserDashboardEvents } from "@/services/events";
+import { getUserDashboardEventsPage } from "@/services/events";
 import type { DashboardView } from "@/components/events/dashboard-filters";
 
 export const metadata = {
@@ -15,7 +16,12 @@ export const metadata = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string | string[]; group?: string | string[] }>;
+  searchParams: Promise<{
+    view?: string | string[];
+    group?: string | string[];
+    page?: string | string[];
+    pageSize?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
   const currentUser = await getCurrentUser();
@@ -24,18 +30,44 @@ export default async function DashboardPage({
     redirect("/login?from=/dashboard");
   }
 
-  const { groups, activeEvents, archiveEvents } = await getUserDashboardEvents(currentUser.id);
   const selectedView = getSelectedView(params.view);
+  const requestedPage = getPositiveIntegerParam(params.page, 1);
+  const requestedPageSize = getPositiveIntegerParam(params.pageSize, 10);
+  const groupsResult = await getUserDashboardEventsPage(currentUser.id, {
+    view: selectedView,
+    page: 1,
+    pageSize: requestedPageSize,
+  });
+  const { groups } = groupsResult;
   const requestedGroupSlug =
     typeof params.group === "string" ? params.group : undefined;
   const selectedGroup = groups.find((group) => group.slug === requestedGroupSlug);
   const selectedGroupSlug = selectedGroup?.slug;
-  const viewEvents = selectedView === "active" ? activeEvents : archiveEvents;
-  const visibleEvents = selectedGroupSlug
-    ? viewEvents.filter((event) => event.groupSlug === selectedGroupSlug)
-    : viewEvents;
-  const countsByGroup = getGroupFilterCounts(viewEvents);
+  const initialDashboardPage = selectedGroup
+    ? await getUserDashboardEventsPage(currentUser.id, {
+        view: selectedView,
+        groupId: selectedGroup.id,
+        page: requestedPage,
+        pageSize: requestedPageSize,
+      })
+    : requestedPage === 1
+      ? groupsResult
+      : await getUserDashboardEventsPage(currentUser.id, {
+          view: selectedView,
+          page: requestedPage,
+          pageSize: requestedPageSize,
+        });
+  const dashboardPage =
+    requestedPage > initialDashboardPage.totalPages && initialDashboardPage.total > 0
+      ? await getUserDashboardEventsPage(currentUser.id, {
+          view: selectedView,
+          groupId: selectedGroup?.id,
+          page: initialDashboardPage.totalPages,
+          pageSize: initialDashboardPage.pageSize,
+        })
+      : initialDashboardPage;
   const pageTitle = selectedView === "active" ? "Active Events" : "Archived Events";
+  const currentPage = Math.min(dashboardPage.page, dashboardPage.totalPages);
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-10 sm:px-6 lg:px-8">
@@ -58,19 +90,21 @@ export default async function DashboardPage({
           <DashboardViewTabs
             selectedView={selectedView}
             selectedGroupSlug={selectedGroupSlug}
+            pageSize={dashboardPage.pageSize}
           />
           <GroupFilterTabs
             groups={groups}
-            countsByGroup={countsByGroup}
-            allCount={viewEvents.length}
+            countsByGroup={dashboardPage.countsByGroup}
+            allCount={dashboardPage.allCount}
             selectedView={selectedView}
             selectedGroupSlug={selectedGroupSlug}
+            pageSize={dashboardPage.pageSize}
           />
         </div>
 
-        {visibleEvents.length > 0 ? (
+        {dashboardPage.events.length > 0 ? (
           <div className="grid gap-4">
-            {visibleEvents.map((event) => (
+            {dashboardPage.events.map((event) => (
               <EventCard
                 key={event.id}
                 event={event}
@@ -84,6 +118,15 @@ export default async function DashboardPage({
             selectedGroupTitle={selectedGroup?.title}
           />
         )}
+
+        <DashboardPagination
+          selectedView={selectedView}
+          selectedGroupSlug={selectedGroupSlug}
+          page={currentPage}
+          pageSize={dashboardPage.pageSize}
+          total={dashboardPage.total}
+          totalPages={dashboardPage.totalPages}
+        />
       </section>
     </div>
   );
@@ -122,12 +165,119 @@ function getSelectedView(value: string | string[] | undefined): DashboardView {
   return value === "archive" ? "archive" : "active";
 }
 
-function getGroupFilterCounts(events: DashboardEvent[]) {
-  const countsByGroup = new Map<string, number>();
+function DashboardPagination({
+  selectedView,
+  selectedGroupSlug,
+  page,
+  pageSize,
+  total,
+  totalPages,
+}: {
+  selectedView: DashboardView;
+  selectedGroupSlug?: string;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}) {
+  const hasPrevious = page > 1;
+  const hasNext = page < totalPages;
+  const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(total, page * pageSize);
 
-  for (const event of events) {
-    countsByGroup.set(event.groupSlug, (countsByGroup.get(event.groupSlug) ?? 0) + 1);
+  return (
+    <nav
+      aria-label="Dashboard pagination"
+      className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm font-medium text-slate-600">
+        Page {page} of {totalPages}
+        {total > 0 ? `, showing ${startItem}-${endItem} of ${total} events` : ""}
+      </p>
+      <div className="flex gap-2">
+        <PaginationLink
+          href={getDashboardPageHref({
+            view: selectedView,
+            groupSlug: selectedGroupSlug,
+            page: page - 1,
+            pageSize,
+          })}
+          disabled={!hasPrevious}
+        >
+          Previous
+        </PaginationLink>
+        <PaginationLink
+          href={getDashboardPageHref({
+            view: selectedView,
+            groupSlug: selectedGroupSlug,
+            page: page + 1,
+            pageSize,
+          })}
+          disabled={!hasNext}
+        >
+          Next
+        </PaginationLink>
+      </div>
+    </nav>
+  );
+}
+
+function PaginationLink({
+  children,
+  disabled,
+  href,
+}: {
+  children: React.ReactNode;
+  disabled: boolean;
+  href: string;
+}) {
+  if (disabled) {
+    return (
+      <span className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-400">
+        {children}
+      </span>
+    );
   }
 
-  return countsByGroup;
+  return (
+    <Link
+      href={href}
+      className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-[#0B6B8A] hover:text-[#004F6E]"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function getDashboardPageHref({
+  view,
+  groupSlug,
+  page,
+  pageSize,
+}: {
+  view: DashboardView;
+  groupSlug?: string;
+  page: number;
+  pageSize: number;
+}) {
+  const params = new URLSearchParams();
+
+  params.set("view", view);
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+
+  if (groupSlug) {
+    params.set("group", groupSlug);
+  }
+
+  return `/dashboard?${params.toString()}`;
+}
+
+function getPositiveIntegerParam(
+  value: string | string[] | undefined,
+  fallback: number,
+) {
+  const parsed = Number(typeof value === "string" ? value : undefined);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
