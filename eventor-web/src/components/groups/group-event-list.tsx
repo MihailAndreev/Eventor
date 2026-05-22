@@ -27,15 +27,15 @@ export function GroupEventList({
       {events.map((event) => (
         <article
           key={event.id}
-          className={`rounded-lg border border-slate-200 p-4 shadow-sm ${
+          className={`relative rounded-lg border border-slate-200 p-4 shadow-sm ${
             event.isActive ? "bg-white" : "bg-slate-50/80"
           }`}
         >
           <div
             className={`grid gap-4 sm:items-start ${
               event.coverImageUrl
-                ? "sm:grid-cols-[132px_minmax(0,1fr)_auto]"
-                : "sm:grid-cols-[minmax(0,1fr)_auto]"
+                ? "sm:grid-cols-[132px_minmax(0,1fr)]"
+                : "sm:grid-cols-[minmax(0,1fr)]"
             }`}
           >
             {event.coverImageUrl ? (
@@ -45,18 +45,20 @@ export function GroupEventList({
                 size="thumb"
               />
             ) : null}
-            <div className="min-w-0">
-              <div className="flex flex-wrap gap-2">
-                <EventStateBadge event={event} />
-                {event.canceled ? (
-                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 ring-1 ring-red-200">
-                    canceled
-                  </span>
-                ) : null}
+            <div className="min-w-0 sm:pr-1">
+              <div className="min-w-0 sm:max-w-[calc(100%-18rem)]">
+                <div className="flex flex-wrap gap-2">
+                  <EventStateBadge event={event} />
+                  {event.canceled ? (
+                    <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+                      canceled
+                    </span>
+                  ) : null}
+                </div>
+                <h3 className="mt-3 truncate text-lg font-semibold tracking-tight text-slate-950">
+                  {event.title}
+                </h3>
               </div>
-              <h3 className="mt-3 text-lg font-semibold tracking-tight text-slate-950">
-                {event.title}
-              </h3>
               <dl className="mt-3 grid gap-2 sm:grid-cols-3">
                 <MetaItem label="Date" value={formatDate(event.startAt)} />
                 <MetaItem label="Time" value={formatTime(event.startAt)} />
@@ -66,7 +68,7 @@ export function GroupEventList({
                 {getCapacityText(event)}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
+            <div className="flex flex-wrap gap-2 sm:absolute sm:right-4 sm:top-4 sm:justify-end">
               <Link
                 href={`/events/${event.id}`}
                 className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"

@@ -1,56 +1,63 @@
-# Welcome to your Expo app 👋
+# Eventor Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo mobile client for Eventor. The mobile app is focused on member workflows:
+login, registration, event browsing, event details, join/leave actions, reserved slots, comments, notifications, and profile/logout.
 
-## Get started
+## Environment
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+The mobile client calls the Next.js REST API through:
 
 ```bash
-npm run reset-project
+EXPO_PUBLIC_API_BASE_URL=https://eventor-web.netlify.app/api
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+For local development against a local backend, temporarily change this value to your local API URL, for example:
 
-### Other setup steps
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://localhost:3000/api
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+On a physical device, use your machine LAN address instead of `localhost`.
 
-## Learn more
+## Local Development
 
-To learn more about developing your project with Expo, look at the following resources:
+From the repository root:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm install
+npm run dev --workspace eventor-mobile
+```
 
-## Join the community
+Common Expo targets:
 
-Join our community of developers creating universal apps.
+```bash
+npm run android --workspace eventor-mobile
+npm run ios --workspace eventor-mobile
+npm run web --workspace eventor-mobile
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Production Web Export
+
+Build the static Expo web export from the repository root:
+
+```bash
+npm run build --workspace eventor-mobile
+```
+
+The generated deploy folder is:
+
+```text
+eventor-mobile/dist
+```
+
+Netlify settings:
+
+- Build command: `npm run build --workspace eventor-mobile`
+- Publish directory: `eventor-mobile/dist`
+
+## Quality Checks
+
+```bash
+npm run lint --workspace eventor-mobile
+npm run build --workspace eventor-mobile
+```
