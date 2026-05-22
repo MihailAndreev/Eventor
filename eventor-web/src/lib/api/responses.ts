@@ -55,6 +55,7 @@ export function serializeEventDetails(event: DashboardEvent) {
       text: comment.text,
       createdAt: comment.createdAt.toISOString(),
       authorName: comment.authorName,
+      authorId: comment.userId,
     })),
   };
 }

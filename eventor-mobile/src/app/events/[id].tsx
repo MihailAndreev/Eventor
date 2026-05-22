@@ -7,14 +7,18 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  addEventCommentRequest,
+  deleteEventCommentRequest,
   getEventDetails,
   joinEventRequest,
   leaveEventRequest,
+  updateEventCommentRequest,
   updateEventSlotsRequest,
   type EventDetails,
 } from '@/lib/api';
@@ -22,13 +26,18 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'join' | 'leave' | 'slots' | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    'join' | 'leave' | 'slots' | 'addComment' | `editComment:${number}` | `deleteComment:${number}` | null
+  >(null);
+  const [commentText, setCommentText] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
 
   const eventId = Array.isArray(id) ? id[0] : id;
   const canDecreaseSlots = Boolean(event?.isJoined && event.currentUserReservedSlots > 0 && !pendingAction);
@@ -77,7 +86,10 @@ export default function EventDetailsScreen() {
     void loadEvent();
   }, [loadEvent]);
 
-  async function runMutation(action: 'join' | 'leave' | 'slots', mutate: () => Promise<{ message: string }>) {
+  async function runMutation(
+    action: NonNullable<typeof pendingAction>,
+    mutate: () => Promise<{ message: string }>,
+  ) {
     setPendingAction(action);
     setError(null);
     setNotice(null);
@@ -86,8 +98,10 @@ export default function EventDetailsScreen() {
       const result = await mutate();
       setNotice(result.message);
       await loadEvent('refreshing');
+      return true;
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Unable to update event.');
+      return false;
     } finally {
       setPendingAction(null);
     }
@@ -121,6 +135,74 @@ export default function EventDetailsScreen() {
         token,
       }),
     );
+  }
+
+  async function handleAddComment() {
+    if (!event || !token) {
+      return;
+    }
+
+    const text = commentText.trim();
+
+    if (!text) {
+      setError('Enter a comment before saving.');
+      return;
+    }
+
+    const ok = await runMutation('addComment', () =>
+      addEventCommentRequest({ id: event.id, text, token }),
+    );
+
+    if (ok) {
+      setCommentText('');
+    }
+  }
+
+  function startEditingComment(comment: EventDetails['comments'][number]) {
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.text);
+    setError(null);
+    setNotice(null);
+  }
+
+  function cancelEditingComment() {
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  }
+
+  async function handleUpdateComment(commentId: number) {
+    if (!event || !token) {
+      return;
+    }
+
+    const text = editingCommentText.trim();
+
+    if (!text) {
+      setError('Enter a comment before saving.');
+      return;
+    }
+
+    const ok = await runMutation(`editComment:${commentId}`, () =>
+      updateEventCommentRequest({ id: event.id, commentId, text, token }),
+    );
+
+    if (ok) {
+      cancelEditingComment();
+    }
+  }
+
+  async function handleDeleteComment(commentId: number) {
+    if (!event || !token) {
+      return;
+    }
+
+    await runMutation(`deleteComment:${commentId}`, () =>
+      deleteEventCommentRequest({ id: event.id, commentId, token }),
+    );
+
+    if (editingCommentId === commentId) {
+      cancelEditingComment();
+    }
   }
 
   if (isLoading && !event) {
@@ -260,6 +342,30 @@ export default function EventDetailsScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Comments ({event.commentsCount})</Text>
+          <View style={styles.commentComposer}>
+            <TextInput
+              editable={!pendingAction}
+              multiline
+              onChangeText={setCommentText}
+              placeholder="Add a comment"
+              style={styles.commentInput}
+              textAlignVertical="top"
+              value={commentText}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={Boolean(pendingAction)}
+              onPress={() => void handleAddComment()}
+              style={[styles.compactButton, pendingAction && styles.disabledButton]}
+            >
+              {pendingAction === 'addComment' ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.compactButtonText}>Post</Text>
+              )}
+            </Pressable>
+          </View>
+
           {event.comments.length > 0 ? (
             event.comments.map((comment) => (
               <View key={comment.id} style={styles.comment}>
@@ -267,7 +373,68 @@ export default function EventDetailsScreen() {
                   <Text style={styles.listRowTitle}>{comment.authorName}</Text>
                   <Text style={styles.listRowMeta}>{formatDate(comment.createdAt)}</Text>
                 </View>
-                <Text style={styles.commentText}>{comment.text}</Text>
+                {editingCommentId === comment.id ? (
+                  <View style={styles.editBlock}>
+                    <TextInput
+                      editable={!pendingAction}
+                      multiline
+                      onChangeText={setEditingCommentText}
+                      style={styles.commentInput}
+                      textAlignVertical="top"
+                      value={editingCommentText}
+                    />
+                    <View style={styles.commentActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={Boolean(pendingAction)}
+                        onPress={() => void handleUpdateComment(comment.id)}
+                        style={[styles.compactButton, pendingAction && styles.disabledButton]}
+                      >
+                        {pendingAction === `editComment:${comment.id}` ? (
+                          <ActivityIndicator color="#ffffff" />
+                        ) : (
+                          <Text style={styles.compactButtonText}>Save</Text>
+                        )}
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={Boolean(pendingAction)}
+                        onPress={cancelEditingComment}
+                        style={[styles.secondaryButton, pendingAction && styles.disabledButton]}
+                      >
+                        <Text style={styles.secondaryButtonText}>Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.commentText}>{comment.text}</Text>
+                    {comment.authorId === user?.id ? (
+                      <View style={styles.commentActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={Boolean(pendingAction)}
+                          onPress={() => startEditingComment(comment)}
+                          style={[styles.secondaryButton, pendingAction && styles.disabledButton]}
+                        >
+                          <Text style={styles.secondaryButtonText}>Edit</Text>
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={Boolean(pendingAction)}
+                          onPress={() => void handleDeleteComment(comment.id)}
+                          style={[styles.smallDangerButton, pendingAction && styles.disabledButton]}
+                        >
+                          {pendingAction === `deleteComment:${comment.id}` ? (
+                            <ActivityIndicator color="#ffffff" />
+                          ) : (
+                            <Text style={styles.compactButtonText}>Delete</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </>
+                )}
               </View>
             ))
           ) : (
@@ -509,6 +676,65 @@ const styles = StyleSheet.create({
     color: '#18201c',
     fontSize: 15,
     lineHeight: 22,
+  },
+  commentComposer: {
+    gap: 10,
+  },
+  commentInput: {
+    minHeight: 92,
+    borderWidth: 1,
+    borderColor: '#cbd5cf',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#18201c',
+    backgroundColor: '#fbfcfb',
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  editBlock: {
+    gap: 10,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  compactButton: {
+    minHeight: 42,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0f6b4f',
+  },
+  compactButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    minHeight: 42,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#cbd5cf',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  secondaryButtonText: {
+    color: '#0f6b4f',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  smallDangerButton: {
+    minHeight: 42,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#b42318',
   },
   emptyTitle: {
     color: '#18201c',

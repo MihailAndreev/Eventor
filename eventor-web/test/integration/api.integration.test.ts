@@ -182,6 +182,129 @@ describe("Eventor API integration", () => {
     expect(afterLeaveBody.data.currentUserReservedSlots).toBe(0);
   });
 
+  it("supports event comment create, edit, and delete over the REST API", async () => {
+    const { token } = await login(seed.users.member.email, seed.password);
+
+    const add = await apiFetch(`/api/events/${seed.events.active.id}/comments`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ text: "I can bring snacks." }),
+    });
+    const addBody = await add.json();
+
+    expect(add.status).toBe(200);
+    expect(addBody).toEqual({ ok: true, message: "Comment added." });
+
+    const detailsAfterAdd = await apiFetch(`/api/events/${seed.events.active.id}`, { token });
+    const addedComment = (await detailsAfterAdd.json()).data.comments.find(
+      (comment: { text: string }) => comment.text === "I can bring snacks.",
+    );
+
+    expect(addedComment).toMatchObject({
+      authorId: seed.users.member.id,
+      authorName: seed.users.member.name,
+      text: "I can bring snacks.",
+    });
+
+    const update = await apiFetch(
+      `/api/events/${seed.events.active.id}/comments/${addedComment.id}`,
+      {
+        method: "PATCH",
+        token,
+        body: JSON.stringify({ text: "I can bring water." }),
+      },
+    );
+
+    expect(update.status).toBe(200);
+    expect(await update.json()).toEqual({ ok: true, message: "Comment updated." });
+
+    const detailsAfterUpdate = await apiFetch(`/api/events/${seed.events.active.id}`, { token });
+    const updatedComment = (await detailsAfterUpdate.json()).data.comments.find(
+      (comment: { id: number }) => comment.id === addedComment.id,
+    );
+
+    expect(updatedComment.text).toBe("I can bring water.");
+
+    const remove = await apiFetch(
+      `/api/events/${seed.events.active.id}/comments/${addedComment.id}`,
+      { method: "DELETE", token },
+    );
+
+    expect(remove.status).toBe(200);
+    expect(await remove.json()).toEqual({ ok: true, message: "Comment deleted." });
+  });
+
+  it("enforces comment API validation and authorization", async () => {
+    const memberLogin = await login(seed.users.member.email, seed.password);
+    const managerLogin = await login(seed.users.manager.email, seed.password);
+    const outsideLogin = await login(seed.users.outside.email, seed.password);
+
+    const invalid = await apiFetch(`/api/events/${seed.events.active.id}/comments`, {
+      method: "POST",
+      token: memberLogin.token,
+      body: JSON.stringify({ text: "   " }),
+    });
+
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toEqual({ error: "Enter a comment before saving." });
+
+    const outside = await apiFetch(`/api/events/${seed.events.active.id}/comments`, {
+      method: "POST",
+      token: outsideLogin.token,
+      body: JSON.stringify({ text: "Can I join?" }),
+    });
+
+    expect(outside.status).toBe(403);
+    expect(await outside.json()).toEqual({
+      error: "You are not a member of this event group.",
+    });
+
+    const memberComment = await apiFetch(`/api/events/${seed.events.active.id}/comments`, {
+      method: "POST",
+      token: memberLogin.token,
+      body: JSON.stringify({ text: "Member-owned comment." }),
+    });
+
+    expect(memberComment.status).toBe(200);
+
+    const memberDetails = await apiFetch(`/api/events/${seed.events.active.id}`, {
+      token: memberLogin.token,
+    });
+    const comment = (await memberDetails.json()).data.comments.find(
+      (item: { text: string }) => item.text === "Member-owned comment.",
+    );
+
+    const managerEdit = await apiFetch(
+      `/api/events/${seed.events.active.id}/comments/${comment.id}`,
+      {
+        method: "PATCH",
+        token: managerLogin.token,
+        body: JSON.stringify({ text: "Manager edit attempt." }),
+      },
+    );
+
+    expect(managerEdit.status).toBe(403);
+    expect(await managerEdit.json()).toEqual({
+      error: "You can only edit your own comments.",
+    });
+
+    const managerDelete = await apiFetch(
+      `/api/events/${seed.events.active.id}/comments/${comment.id}`,
+      { method: "DELETE", token: managerLogin.token },
+    );
+
+    expect(managerDelete.status).toBe(200);
+    expect(await managerDelete.json()).toEqual({ ok: true, message: "Comment deleted." });
+
+    const missing = await apiFetch(
+      `/api/events/${seed.events.active.id}/comments/${comment.id}`,
+      { method: "DELETE", token: memberLogin.token },
+    );
+
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual({ error: "Comment not found." });
+  });
+
   it("enforces capacity rules", async () => {
     const { token } = await login(seed.users.member.email, seed.password);
 

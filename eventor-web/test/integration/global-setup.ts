@@ -21,6 +21,8 @@ export default async function setup() {
     register: await import("@/app/api/auth/register/route"),
     events: await import("@/app/api/events/route"),
     eventDetails: await import("@/app/api/events/[id]/route"),
+    comments: await import("@/app/api/events/[id]/comments/route"),
+    commentDetails: await import("@/app/api/events/[id]/comments/[commentId]/route"),
     join: await import("@/app/api/events/[id]/join/route"),
     leave: await import("@/app/api/events/[id]/leave/route"),
     slots: await import("@/app/api/events/[id]/slots/route"),
@@ -35,6 +37,8 @@ export default async function setup() {
       const url = new URL(request.url);
       const method = request.method.toUpperCase();
       const eventMatch = /^\/api\/events\/([^/]+)$/.exec(url.pathname);
+      const commentsMatch = /^\/api\/events\/([^/]+)\/comments$/.exec(url.pathname);
+      const commentDetailsMatch = /^\/api\/events\/([^/]+)\/comments\/([^/]+)$/.exec(url.pathname);
       const eventActionMatch = /^\/api\/events\/([^/]+)\/(join|leave|slots)$/.exec(url.pathname);
       const adminDeleteMatch =
         /^\/admin\/(comments|groups|events)\/([^/]+)\/delete$/.exec(url.pathname);
@@ -58,6 +62,24 @@ export default async function setup() {
       } else if (method === "GET" && eventMatch) {
         apiResponse = await routes.eventDetails.GET(request, {
           params: Promise.resolve({ id: eventMatch[1] }),
+        });
+      } else if (method === "POST" && commentsMatch) {
+        apiResponse = await routes.comments.POST(request, {
+          params: Promise.resolve({ id: commentsMatch[1] }),
+        });
+      } else if (method === "PATCH" && commentDetailsMatch) {
+        apiResponse = await routes.commentDetails.PATCH(request, {
+          params: Promise.resolve({
+            id: commentDetailsMatch[1],
+            commentId: commentDetailsMatch[2],
+          }),
+        });
+      } else if (method === "DELETE" && commentDetailsMatch) {
+        apiResponse = await routes.commentDetails.DELETE(request, {
+          params: Promise.resolve({
+            id: commentDetailsMatch[1],
+            commentId: commentDetailsMatch[2],
+          }),
         });
       } else if (method === "POST" && eventActionMatch?.[2] === "join") {
         apiResponse = await routes.join.POST(request, {

@@ -65,6 +65,7 @@ export type EventDetails = EventListItem & {
     text: string;
     createdAt: string;
     authorName: string;
+    authorId: number;
   }[];
 };
 
@@ -181,9 +182,51 @@ export async function updateEventSlotsRequest(input: {
   });
 }
 
-async function eventMutation(path: string, token: string, body?: Record<string, unknown>) {
+export async function addEventCommentRequest(input: {
+  id: number;
+  text: string;
+  token: string;
+}) {
+  return eventMutation(`/events/${input.id}/comments`, input.token, {
+    text: input.text,
+  });
+}
+
+export async function updateEventCommentRequest(input: {
+  id: number;
+  commentId: number;
+  text: string;
+  token: string;
+}) {
+  return eventMutation(
+    `/events/${input.id}/comments/${input.commentId}`,
+    input.token,
+    { text: input.text },
+    'PATCH',
+  );
+}
+
+export async function deleteEventCommentRequest(input: {
+  id: number;
+  commentId: number;
+  token: string;
+}) {
+  return eventMutation(
+    `/events/${input.id}/comments/${input.commentId}`,
+    input.token,
+    undefined,
+    'DELETE',
+  );
+}
+
+async function eventMutation(
+  path: string,
+  token: string,
+  body?: Record<string, unknown>,
+  method: 'POST' | 'PATCH' | 'DELETE' = 'POST',
+) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
+    method,
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',

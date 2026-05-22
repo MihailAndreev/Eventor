@@ -6,7 +6,7 @@ const publicPaths = new Set(["/", "/login", "/register"]);
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "DELETE, GET, PATCH, POST, OPTIONS",
   "Access-Control-Allow-Origin": "*",
 };
 
