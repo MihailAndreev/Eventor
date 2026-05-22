@@ -44,6 +44,7 @@ function AppStack() {
       <Stack.Screen name="events" options={{ title: 'Dashboard' }} />
       <Stack.Screen name="events/[id]" options={{ title: 'Event Details' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+      <Stack.Screen name="profile" options={{ title: 'Profile' }} />
     </Stack>
   );
 }
@@ -93,6 +94,19 @@ function HeaderLeft({ routeName }: { routeName: string }) {
       >
         <Text style={styles.backArrow}>‹</Text>
         <Text style={styles.headerLeftText}>Notifications</Text>
+      </Pressable>
+    );
+  }
+
+  if (routeName === 'profile') {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.back()}
+        style={styles.backHeaderLeft}
+      >
+        <Text style={styles.backArrow}>‹</Text>
+        <Text style={styles.headerLeftText}>Profile</Text>
       </Pressable>
     );
   }

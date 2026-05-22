@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -137,7 +137,12 @@ export default function NotificationsScreen() {
         keyExtractor={(notification) => String(notification.id)}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={styles.title}>Notifications</Text>
+            <View style={styles.headerTop}>
+              <Text style={styles.title}>Notifications</Text>
+              <Link href="/profile" style={styles.profileLink}>
+                Profile
+              </Link>
+            </View>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             {notice ? <Text style={styles.noticeText}>{notice}</Text> : null}
           </View>
@@ -293,11 +298,32 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingBottom: 4,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   title: {
+    flex: 1,
     color: '#18201c',
     fontSize: 28,
     fontWeight: '800',
     lineHeight: 34,
+  },
+  profileLink: {
+    minHeight: 42,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: '#cbd5cf',
+    borderRadius: 8,
+    overflow: 'hidden',
+    color: '#0f6b4f',
+    backgroundColor: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   errorText: {
     color: '#b42318',

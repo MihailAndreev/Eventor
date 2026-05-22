@@ -109,6 +109,9 @@ export default function EventsScreen() {
             <Link href="/notifications" style={styles.notificationsLink}>
               Notifications
             </Link>
+            <Link href="/profile" style={styles.notificationsLink}>
+              Profile
+            </Link>
           </View>
         }
         ListEmptyComponent={
@@ -255,7 +258,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
     alignItems: 'flex-end',
+    gap: 8,
   },
   notificationsLink: {
     minHeight: 42,

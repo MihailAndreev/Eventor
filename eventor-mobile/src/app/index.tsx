@@ -21,6 +21,9 @@ export default function HomeScreen() {
             <Link href="/notifications" style={styles.notificationsLink}>
               Notifications
             </Link>
+            <Link href="/profile" style={styles.notificationsLink}>
+              Profile
+            </Link>
             <Pressable accessibilityRole="button" onPress={logout} style={styles.logoutButton}>
               <Text style={styles.logoutButtonText}>Logout</Text>
             </Pressable>
