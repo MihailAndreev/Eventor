@@ -19,6 +19,8 @@ export default async function setup() {
   const routes = {
     login: await import("@/app/api/auth/login/route"),
     register: await import("@/app/api/auth/register/route"),
+    notifications: await import("@/app/api/notifications/route"),
+    notificationRead: await import("@/app/api/notifications/[id]/read/route"),
     events: await import("@/app/api/events/route"),
     eventDetails: await import("@/app/api/events/[id]/route"),
     comments: await import("@/app/api/events/[id]/comments/route"),
@@ -37,6 +39,7 @@ export default async function setup() {
       const url = new URL(request.url);
       const method = request.method.toUpperCase();
       const eventMatch = /^\/api\/events\/([^/]+)$/.exec(url.pathname);
+      const notificationReadMatch = /^\/api\/notifications\/([^/]+)\/read$/.exec(url.pathname);
       const commentsMatch = /^\/api\/events\/([^/]+)\/comments$/.exec(url.pathname);
       const commentDetailsMatch = /^\/api\/events\/([^/]+)\/comments\/([^/]+)$/.exec(url.pathname);
       const eventActionMatch = /^\/api\/events\/([^/]+)\/(join|leave|slots)$/.exec(url.pathname);
@@ -57,6 +60,12 @@ export default async function setup() {
         apiResponse = await routes.login.POST(request);
       } else if (method === "POST" && url.pathname === "/api/auth/register") {
         apiResponse = await routes.register.POST(request);
+      } else if (method === "GET" && url.pathname === "/api/notifications") {
+        apiResponse = await routes.notifications.GET(request);
+      } else if (method === "POST" && notificationReadMatch) {
+        apiResponse = await routes.notificationRead.POST(request, {
+          params: Promise.resolve({ id: notificationReadMatch[1] }),
+        });
       } else if (method === "GET" && url.pathname === "/api/events") {
         apiResponse = await routes.events.GET(request);
       } else if (method === "GET" && eventMatch) {

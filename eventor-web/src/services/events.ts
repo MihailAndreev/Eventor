@@ -5,6 +5,7 @@ import { db } from "@/db";
 import {
   eventComments,
   eventLinks,
+  eventNotifications,
   eventParticipants,
   events,
   groupMembers,
@@ -489,6 +490,17 @@ export async function updateEventExtraSlots(
       ),
     );
 
+  if (normalizedExtraSlots !== event.currentUserParticipation.extraSlots) {
+    const actorName = await getUserDisplayName(userId);
+
+    await createEventNotificationsForParticipants({
+      actorUserId: userId,
+      groupId: event.groupId,
+      eventId,
+      text: `${actorName} updated reserved slots for ${event.title}.`,
+    });
+  }
+
   return { ok: true, message: "Reserved slots updated." };
 }
 
@@ -590,6 +602,14 @@ export async function createManagedEvent(
     return { ok: false, message: "Event could not be created." };
   }
 
+  await createEventNotificationsForGroupMembers({
+    actorUserId: userId,
+    groupId,
+    eventId: createdEvent.id,
+    type: "event_created",
+    text: `New event in ${managerAccess.groupTitle}: ${validation.title}.`,
+  });
+
   return { ok: true, message: "Event created.", eventId: createdEvent.id };
 }
 
@@ -624,6 +644,23 @@ export async function updateManagedEvent(
       updatedAt: new Date(),
     })
     .where(and(eq(events.id, eventId), eq(events.groupId, groupId)));
+
+  const notificationType =
+    validation.canceled && !access.event.canceled
+      ? "event_canceled"
+      : "event_updated";
+  const notificationText =
+    notificationType === "event_canceled"
+      ? `${validation.title} was canceled.`
+      : `${validation.title} was updated.`;
+
+  await createEventNotificationsForGroupMembers({
+    actorUserId: userId,
+    groupId,
+    eventId,
+    type: notificationType,
+    text: notificationText,
+  });
 
   return { ok: true, message: "Event updated.", eventId };
 }
@@ -825,6 +862,15 @@ export async function addEventComment(
     text: validation.text,
     createdAt: new Date(),
     updatedAt: new Date(),
+  });
+
+  const actorName = await getUserDisplayName(userId);
+
+  await createEventNotificationsForParticipants({
+    actorUserId: userId,
+    groupId: access.event.groupId,
+    eventId,
+    text: `${actorName} commented on ${access.event.title}.`,
   });
 
   return { ok: true, message: "Comment added." };
@@ -1169,7 +1215,7 @@ async function getEventCommentForMutation(eventId: number, commentId: number) {
 
 async function getGroupManagerAccess(userId: number, groupId: number) {
   const [group] = await db
-    .select({ id: groups.id })
+    .select({ id: groups.id, title: groups.title })
     .from(groups)
     .where(eq(groups.id, groupId))
     .limit(1);
@@ -1197,7 +1243,85 @@ async function getGroupManagerAccess(userId: number, groupId: number) {
     return { ok: false as const, reason: "not_manager" as const };
   }
 
-  return { ok: true as const };
+  return { ok: true as const, groupTitle: group.title };
+}
+
+async function createEventNotificationsForGroupMembers(input: {
+  actorUserId: number;
+  groupId: number;
+  eventId: number;
+  type: "event_created" | "event_updated" | "event_canceled";
+  text: string;
+}) {
+  const memberRows = await db
+    .select({ userId: groupMembers.userId })
+    .from(groupMembers)
+    .where(eq(groupMembers.groupId, input.groupId));
+  const recipients = memberRows
+    .map((member) => member.userId)
+    .filter((userId) => userId !== input.actorUserId);
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await db.insert(eventNotifications).values(
+    recipients.map((userId) => ({
+      userId,
+      groupId: input.groupId,
+      eventId: input.eventId,
+      type: input.type,
+      text: input.text,
+      read: false,
+      createdAt: new Date(),
+    })),
+  );
+}
+
+async function createEventNotificationsForParticipants(input: {
+  actorUserId: number;
+  groupId: number;
+  eventId: number;
+  text: string;
+}) {
+  const participantRows = await db
+    .select({ userId: eventParticipants.userId })
+    .from(eventParticipants)
+    .where(
+      and(
+        eq(eventParticipants.eventId, input.eventId),
+        eq(eventParticipants.status, "going"),
+      ),
+    );
+  const recipients = participantRows
+    .map((participant) => participant.userId)
+    .filter((userId) => userId !== input.actorUserId);
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await db.insert(eventNotifications).values(
+    recipients.map((userId) => ({
+      userId,
+      groupId: input.groupId,
+      eventId: input.eventId,
+      type: "event_updated" as const,
+      text: input.text,
+      read: false,
+      createdAt: new Date(),
+    })),
+  );
+}
+
+async function getUserDisplayName(userId: number) {
+  const [user] = await db
+    .select({ name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return user?.name ?? user?.email ?? "A member";
 }
 
 async function getEventMutationAccess(userId: number, eventId: number) {

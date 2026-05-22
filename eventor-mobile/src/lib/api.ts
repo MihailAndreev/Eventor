@@ -52,6 +52,26 @@ export type EventsPage = {
   };
 };
 
+export type NotificationItem = {
+  id: number;
+  type: string;
+  text: string;
+  read: boolean;
+  createdAt: string;
+  groupId: number | null;
+  eventId: number | null;
+};
+
+export type NotificationsPage = {
+  data: NotificationItem[];
+  paging: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 export type EventDetails = EventListItem & {
   commentsCount: number;
   currentUserReservedSlots: number;
@@ -164,6 +184,33 @@ export async function getEventDetails(input: { id: string; token: string }) {
   return body.data;
 }
 
+export async function getNotificationsPage(input: {
+  page: number;
+  pageSize: number;
+  token: string;
+}) {
+  const searchParams = new URLSearchParams({
+    page: String(input.page),
+    pageSize: String(input.pageSize),
+  });
+  const response = await fetch(`${API_BASE_URL}/notifications?${searchParams.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${input.token}`,
+    },
+  });
+  const body = (await response.json().catch(() => null)) as NotificationsPage | ApiErrorResponse | null;
+
+  if (!response.ok) {
+    throw new Error(body?.error ?? 'Unable to load notifications.');
+  }
+
+  if (!body || !('data' in body) || !('paging' in body)) {
+    throw new Error('Notifications response is invalid.');
+  }
+
+  return body;
+}
+
 export async function joinEventRequest(input: { id: number; token: string }) {
   return eventMutation(`/events/${input.id}/join`, input.token);
 }
@@ -217,6 +264,10 @@ export async function deleteEventCommentRequest(input: {
     undefined,
     'DELETE',
   );
+}
+
+export async function markNotificationReadRequest(input: { id: number; token: string }) {
+  return eventMutation(`/notifications/${input.id}/read`, input.token);
 }
 
 async function eventMutation(

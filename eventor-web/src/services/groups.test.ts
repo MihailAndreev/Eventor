@@ -128,6 +128,7 @@ describe("group service business rules", () => {
     dbQueues.select.push([]);
     dbQueues.update.push([{ id: 33 }]);
     dbQueues.insert.push([{ id: 99 }]);
+    dbQueues.select.push([{ title: "Hikers" }]);
 
     await expect(acceptGroupInvite(7, 10, "  abc123  ")).resolves.toEqual({
       ok: true,
@@ -135,13 +136,19 @@ describe("group service business rules", () => {
       message: "You joined the group.",
       groupId: 10,
     });
-    expect(dbCalls.insertValues).toMatchObject([
-      {
-        groupId: 10,
-        userId: 7,
-        isManager: false,
-      },
-    ]);
+    expect(dbCalls.insertValues[0]).toMatchObject({
+      groupId: 10,
+      userId: 7,
+      isManager: false,
+    });
+    expect(dbCalls.insertValues[1]).toMatchObject({
+      groupId: 10,
+      userId: 7,
+      eventId: null,
+      type: "group_invite",
+      text: "You joined Hikers.",
+      read: false,
+    });
   });
 
   it("rejects a missing invite code before touching the database", async () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { eq } from "drizzle-orm";
+import { eventNotifications, eventParticipants } from "@/db/schema";
 import { apiFetch, login } from "./helpers/http";
-import { resetAndSeedTestDb, type IntegrationSeed } from "./helpers/db";
+import { getIntegrationDb, resetAndSeedTestDb, type IntegrationSeed } from "./helpers/db";
 
 describe("Eventor API integration", () => {
   let seed: IntegrationSeed;
@@ -94,6 +96,121 @@ describe("Eventor API integration", () => {
     expect(list.status).toBe(401);
     expect(details.status).toBe(401);
     expect(join.status).toBe(401);
+  });
+
+  it("lists authenticated user notifications with pagination", async () => {
+    const db = getIntegrationDb();
+
+    await db.insert(eventNotifications).values([
+      {
+        userId: seed.users.member.id,
+        groupId: seed.groups.primary.id,
+        eventId: seed.events.active.id,
+        type: "event_updated",
+        text: "Active event was updated.",
+        read: false,
+      },
+      {
+        userId: seed.users.member.id,
+        groupId: seed.groups.primary.id,
+        eventId: seed.events.full.id,
+        type: "event_canceled",
+        text: "Full event was canceled.",
+        read: true,
+      },
+      {
+        userId: seed.users.outside.id,
+        groupId: seed.groups.outside.id,
+        eventId: seed.events.outside.id,
+        type: "event_updated",
+        text: "Outside event notification.",
+        read: false,
+      },
+    ]);
+
+    const { token } = await login(seed.users.member.email, seed.password);
+    const response = await apiFetch("/api/notifications?page=1&pageSize=1", { token });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.paging).toEqual({
+      page: 1,
+      pageSize: 1,
+      total: 2,
+      totalPages: 2,
+    });
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({
+      type: "event_canceled",
+      text: "Full event was canceled.",
+      read: true,
+      groupId: seed.groups.primary.id,
+      eventId: seed.events.full.id,
+    });
+    expect(typeof body.data[0].createdAt).toBe("string");
+  });
+
+  it("marks only owned notifications as read", async () => {
+    const db = getIntegrationDb();
+    const [memberNotification, outsideNotification] = await db
+      .insert(eventNotifications)
+      .values([
+        {
+          userId: seed.users.member.id,
+          groupId: seed.groups.primary.id,
+          eventId: seed.events.active.id,
+          type: "event_updated",
+          text: "Member notification.",
+          read: false,
+        },
+        {
+          userId: seed.users.outside.id,
+          groupId: seed.groups.outside.id,
+          eventId: seed.events.outside.id,
+          type: "event_updated",
+          text: "Outside notification.",
+          read: false,
+        },
+      ])
+      .returning({ id: eventNotifications.id });
+    const { token } = await login(seed.users.member.email, seed.password);
+
+    const invalid = await apiFetch("/api/notifications/not-a-number/read", {
+      method: "POST",
+      token,
+    });
+
+    expect(invalid.status).toBe(404);
+    expect(await invalid.json()).toEqual({ error: "Notification not found." });
+
+    const forbidden = await apiFetch(
+      `/api/notifications/${outsideNotification.id}/read`,
+      {
+        method: "POST",
+        token,
+      },
+    );
+
+    expect(forbidden.status).toBe(404);
+    expect(await forbidden.json()).toEqual({ error: "Notification not found." });
+
+    const read = await apiFetch(`/api/notifications/${memberNotification.id}/read`, {
+      method: "POST",
+      token,
+    });
+
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({
+      ok: true,
+      message: "Notification marked as read.",
+    });
+
+    const [updated] = await db
+      .select({ read: eventNotifications.read })
+      .from(eventNotifications)
+      .where(eq(eventNotifications.id, memberNotification.id));
+
+    expect(updated.read).toBe(true);
   });
 
   it("lets logged-in group members list and view events in their groups", async () => {
@@ -232,6 +349,64 @@ describe("Eventor API integration", () => {
 
     expect(remove.status).toBe(200);
     expect(await remove.json()).toEqual({ ok: true, message: "Comment deleted." });
+  });
+
+  it("notifies joined event participants about new comments and slot changes", async () => {
+    const db = getIntegrationDb();
+
+    await db.insert(eventParticipants).values({
+      eventId: seed.events.active.id,
+      userId: seed.users.manager.id,
+      status: "going",
+      extraSlots: 0,
+    });
+
+    const { token } = await login(seed.users.member.email, seed.password);
+
+    await apiFetch(`/api/events/${seed.events.active.id}/join`, {
+      method: "POST",
+      token,
+    });
+
+    const comment = await apiFetch(`/api/events/${seed.events.active.id}/comments`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ text: "I can bring snacks." }),
+    });
+
+    expect(comment.status).toBe(200);
+
+    const slots = await apiFetch(`/api/events/${seed.events.active.id}/slots`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ extraSlots: 1 }),
+    });
+
+    expect(slots.status).toBe(200);
+
+    const managerLogin = await login(seed.users.manager.email, seed.password);
+    const notifications = await apiFetch("/api/notifications?page=1&pageSize=10", {
+      token: managerLogin.token,
+    });
+    const body = await notifications.json();
+
+    expect(notifications.status).toBe(200);
+    expect(body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "event_updated",
+          text: "Integration Member commented on Integration Active Event.",
+          read: false,
+          eventId: seed.events.active.id,
+        }),
+        expect.objectContaining({
+          type: "event_updated",
+          text: "Integration Member updated reserved slots for Integration Active Event.",
+          read: false,
+          eventId: seed.events.active.id,
+        }),
+      ]),
+    );
   });
 
   it("enforces comment API validation and authorization", async () => {

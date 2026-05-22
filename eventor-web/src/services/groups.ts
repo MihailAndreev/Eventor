@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, ilike, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  eventNotifications,
   eventParticipants,
   events,
   groupInvites,
@@ -880,12 +881,32 @@ export async function acceptGroupInvite(
     };
   }
 
+  await createGroupJoinNotification(userId, groupId);
+
   return {
     ok: true,
     status: "accepted",
     message: "You joined the group.",
     groupId,
   };
+}
+
+async function createGroupJoinNotification(userId: number, groupId: number) {
+  const [group] = await db
+    .select({ title: groups.title })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+
+  await db.insert(eventNotifications).values({
+    userId,
+    groupId,
+    eventId: null,
+    type: "group_invite",
+    text: group ? `You joined ${group.title}.` : "You joined a group.",
+    read: false,
+    createdAt: new Date(),
+  });
 }
 
 async function getGroupMembers(groupId: number): Promise<GroupMemberSummary[]> {

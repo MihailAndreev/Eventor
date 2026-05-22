@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -104,6 +104,13 @@ export default function EventsScreen() {
         contentContainerStyle={styles.listContent}
         data={eventsPage?.data ?? []}
         keyExtractor={(event) => String(event.id)}
+        ListHeaderComponent={
+          <View style={styles.headerActions}>
+            <Link href="/notifications" style={styles.notificationsLink}>
+              Notifications
+            </Link>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>{error ? 'Events unavailable' : 'No active events'}</Text>
@@ -246,6 +253,23 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     gap: 12,
+  },
+  headerActions: {
+    alignItems: 'flex-end',
+  },
+  notificationsLink: {
+    minHeight: 42,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: '#cbd5cf',
+    borderRadius: 8,
+    overflow: 'hidden',
+    color: '#0f6b4f',
+    backgroundColor: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   centerState: {
     flex: 1,

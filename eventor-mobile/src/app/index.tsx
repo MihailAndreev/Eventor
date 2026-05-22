@@ -18,6 +18,9 @@ export default function HomeScreen() {
             <Link href="/events" style={styles.dashboardLink}>
               Events Dashboard
             </Link>
+            <Link href="/notifications" style={styles.notificationsLink}>
+              Notifications
+            </Link>
             <Pressable accessibilityRole="button" onPress={logout} style={styles.logoutButton}>
               <Text style={styles.logoutButtonText}>Logout</Text>
             </Pressable>
@@ -106,6 +109,20 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     backgroundColor: '#0f6b4f',
     fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  notificationsLink: {
+    minHeight: 48,
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: '#cbd5cf',
+    borderRadius: 8,
+    overflow: 'hidden',
+    color: '#0f6b4f',
+    backgroundColor: '#ffffff',
+    fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
   },
