@@ -1,17 +1,17 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-export type LoginUser = {
+export type AuthUser = {
   id: number;
   email: string;
   name: string;
   role: string;
 };
 
-type LoginResponse = {
+type AuthResponse = {
   token: string;
   tokenType: 'Bearer';
-  user: LoginUser;
+  user: AuthUser;
 };
 
 type ApiErrorResponse = {
@@ -84,7 +84,19 @@ if (!API_BASE_URL) {
 }
 
 export async function loginRequest(input: { email: string; password: string }) {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  return authRequest('/auth/login', input, 'Login');
+}
+
+export async function registerRequest(input: { name: string; email: string; password: string }) {
+  return authRequest('/auth/register', input, 'Registration');
+}
+
+async function authRequest(
+  path: string,
+  input: { email: string; password: string; name?: string },
+  action: string,
+) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -92,14 +104,14 @@ export async function loginRequest(input: { email: string; password: string }) {
     body: JSON.stringify(input),
   });
 
-  const body = (await response.json().catch(() => null)) as LoginResponse | ApiErrorResponse | null;
+  const body = (await response.json().catch(() => null)) as AuthResponse | ApiErrorResponse | null;
 
   if (!response.ok) {
-    throw new Error(body?.error ?? 'Login failed. Please try again.');
+    throw new Error(body?.error ?? `${action} failed. Please try again.`);
   }
 
   if (!body || !('token' in body) || !('user' in body)) {
-    throw new Error('Login response is invalid.');
+    throw new Error(`${action} response is invalid.`);
   }
 
   return body;

@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth-context';
 
-const PUBLIC_SEGMENTS = new Set(['login']);
+const PUBLIC_SEGMENTS = new Set(['login', 'register']);
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();

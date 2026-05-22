@@ -37,6 +37,53 @@ describe("Eventor API integration", () => {
     expect(invalidBody.error).toBe("Invalid email or password.");
   });
 
+  it("registers users and rejects invalid or duplicate registration requests", async () => {
+    const valid = await apiFetch("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "New Mobile User",
+        email: "new.mobile@example.com",
+        password: "strong-password",
+      }),
+    });
+    const validBody = await valid.json();
+
+    expect(valid.status).toBe(200);
+    expect(validBody.tokenType).toBe("Bearer");
+    expect(typeof validBody.token).toBe("string");
+    expect(validBody.user).toMatchObject({
+      email: "new.mobile@example.com",
+      name: "New Mobile User",
+      role: "user",
+    });
+
+    const invalid = await apiFetch("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "N",
+        email: "not-an-email",
+        password: "short",
+      }),
+    });
+    const invalidBody = await invalid.json();
+
+    expect(invalid.status).toBe(400);
+    expect(invalidBody.error).toBe("Enter your full name.");
+
+    const duplicate = await apiFetch("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Duplicate Member",
+        email: seed.users.member.email,
+        password: seed.password,
+      }),
+    });
+    const duplicateBody = await duplicate.json();
+
+    expect(duplicate.status).toBe(409);
+    expect(duplicateBody.error).toBe("An account with this email already exists.");
+  });
+
   it("rejects anonymous event API requests", async () => {
     const list = await apiFetch("/api/events");
     const details = await apiFetch(`/api/events/${seed.events.active.id}`);

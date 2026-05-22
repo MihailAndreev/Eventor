@@ -1,14 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { loginRequest, type LoginUser } from './api';
+import { loginRequest, registerRequest, type AuthUser } from './api';
 import { clearStoredSession, getStoredSession, setStoredSession } from './auth-storage';
 
 type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   token: string | null;
-  user: LoginUser | null;
+  user: AuthUser | null;
   login: (input: { email: string; password: string }) => Promise<void>;
+  register: (input: { name: string; email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -16,7 +17,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<LoginUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,6 +50,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(result.user);
   }, []);
 
+  const register = useCallback(async (input: { name: string; email: string; password: string }) => {
+    const result = await registerRequest(input);
+    await setStoredSession({ token: result.token, user: result.user });
+    setToken(result.token);
+    setUser(result.user);
+  }, []);
+
   const logout = useCallback(async () => {
     await clearStoredSession();
     setToken(null);
@@ -62,9 +70,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       user,
       login,
+      register,
       logout,
     }),
-    [isLoading, login, logout, token, user],
+    [isLoading, login, logout, register, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

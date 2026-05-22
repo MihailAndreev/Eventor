@@ -15,18 +15,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth-context';
 
-export default function LoginScreen() {
-  const { login } = useAuth();
+export default function RegisterScreen() {
+  const { register } = useAuth();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
+    const trimmedName = name.trim();
     const trimmedEmail = email.trim();
 
-    if (!trimmedEmail || !password) {
-      setError('Email and password are required.');
+    if (!trimmedName || !trimmedEmail || !password) {
+      setError('Name, email, and password are required.');
       return;
     }
 
@@ -34,10 +36,10 @@ export default function LoginScreen() {
     setIsSubmitting(true);
 
     try {
-      await login({ email: trimmedEmail, password });
+      await register({ name: trimmedName, email: trimmedEmail, password });
       router.replace('/events');
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Login failed. Please try again.');
+      setError(caughtError instanceof Error ? caughtError.message : 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -56,8 +58,22 @@ export default function LoginScreen() {
         >
           <View style={styles.form}>
             <View style={styles.header}>
-              <Text style={styles.title}>Log in</Text>
-              <Text style={styles.subtitle}>Use your Eventor account to continue.</Text>
+              <Text style={styles.title}>Register</Text>
+              <Text style={styles.subtitle}>Create your Eventor account to join group events.</Text>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Name</Text>
+              <TextInput
+                autoComplete="name"
+                editable={!isSubmitting}
+                onChangeText={setName}
+                placeholder="Your name"
+                returnKeyType="next"
+                style={styles.input}
+                textContentType="name"
+                value={name}
+              />
             </View>
 
             <View style={styles.field}>
@@ -82,11 +98,11 @@ export default function LoginScreen() {
                 editable={!isSubmitting}
                 onChangeText={setPassword}
                 onSubmitEditing={handleSubmit}
-                placeholder="Password"
+                placeholder="At least 8 characters"
                 returnKeyType="done"
                 secureTextEntry
                 style={styles.input}
-                textContentType="password"
+                textContentType="newPassword"
                 value={password}
               />
             </View>
@@ -105,16 +121,12 @@ export default function LoginScreen() {
               {isSubmitting ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.submitButtonText}>Log in</Text>
+                <Text style={styles.submitButtonText}>Register</Text>
               )}
             </Pressable>
 
-            <Link href="/" style={styles.homeLink}>
-              Back to Home
-            </Link>
-
-            <Link href="/register" style={styles.homeLink}>
-              Create an account
+            <Link href="/login" style={styles.homeLink}>
+              Back to Login
             </Link>
           </View>
         </ScrollView>

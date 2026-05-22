@@ -1,14 +1,14 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-import type { LoginUser } from './api';
+import type { AuthUser } from './api';
 
 const TOKEN_KEY = 'eventor.sessionToken';
 const USER_KEY = 'eventor.sessionUser';
 
 export type StoredSession = {
   token: string;
-  user: LoginUser;
+  user: AuthUser;
 };
 
 export async function getStoredSession(): Promise<StoredSession | null> {
@@ -24,7 +24,7 @@ export async function getStoredSession(): Promise<StoredSession | null> {
   try {
     return {
       token,
-      user: JSON.parse(userJson) as LoginUser,
+      user: JSON.parse(userJson) as AuthUser,
     };
   } catch {
     await clearStoredSession();

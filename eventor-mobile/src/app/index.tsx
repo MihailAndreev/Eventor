@@ -30,6 +30,9 @@ export default function HomeScreen() {
             <Link href="/login" style={styles.loginLink}>
               Log in
             </Link>
+            <Link href="/register" style={styles.registerLink}>
+              Register
+            </Link>
           </>
         )}
       </View>
@@ -80,6 +83,18 @@ const styles = StyleSheet.create({
     color: '#0f6b4f',
     fontSize: 18,
     fontWeight: '600',
+  },
+  registerLink: {
+    minHeight: 52,
+    paddingHorizontal: 24,
+    paddingVertical: 15,
+    borderRadius: 8,
+    overflow: 'hidden',
+    color: '#ffffff',
+    backgroundColor: '#0f6b4f',
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   dashboardLink: {
     minHeight: 52,

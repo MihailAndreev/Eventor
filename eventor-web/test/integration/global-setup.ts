@@ -18,6 +18,7 @@ export default async function setup() {
 
   const routes = {
     login: await import("@/app/api/auth/login/route"),
+    register: await import("@/app/api/auth/register/route"),
     events: await import("@/app/api/events/route"),
     eventDetails: await import("@/app/api/events/[id]/route"),
     join: await import("@/app/api/events/[id]/join/route"),
@@ -50,6 +51,8 @@ export default async function setup() {
         apiResponse = await getAdminPageHarnessResponse(request, routes);
       } else if (method === "POST" && url.pathname === "/api/auth/login") {
         apiResponse = await routes.login.POST(request);
+      } else if (method === "POST" && url.pathname === "/api/auth/register") {
+        apiResponse = await routes.register.POST(request);
       } else if (method === "GET" && url.pathname === "/api/events") {
         apiResponse = await routes.events.GET(request);
       } else if (method === "GET" && eventMatch) {

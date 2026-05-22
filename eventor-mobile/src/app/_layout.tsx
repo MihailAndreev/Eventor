@@ -40,6 +40,7 @@ function AppStack() {
     >
       <Stack.Screen name="index" options={{ title: 'Home' }} />
       <Stack.Screen name="login" options={{ title: 'Login' }} />
+      <Stack.Screen name="register" options={{ title: 'Register' }} />
       <Stack.Screen name="events" options={{ title: 'Dashboard' }} />
       <Stack.Screen name="events/[id]" options={{ title: 'Event Details' }} />
     </Stack>
@@ -82,7 +83,7 @@ function HeaderLeft({ routeName }: { routeName: string }) {
     );
   }
 
-  return <Text style={styles.headerLeftText}>Login</Text>;
+  return <Text style={styles.headerLeftText}>{routeName === 'register' ? 'Register' : 'Login'}</Text>;
 }
 
 const styles = StyleSheet.create({
